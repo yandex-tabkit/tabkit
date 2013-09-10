@@ -1,0 +1,42 @@
+#!/usr/bin/python
+
+import sys
+import os
+from pipes import quote
+from optparse import OptionParser, Option
+
+from tabkit.header import parse_header, read_fd_header
+from tabkit.utils import safe_system, exception_handler, OptUtils
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options]',
+        option_list = [
+            Option('--no-wait',         dest='no_wait',     action="store_true",),
+            Option('-c', '--cursor',    dest='cursor',      action="store_true",),
+            Option('-N', '--name',      dest='name',                            ),
+        ]
+    )
+
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_print_cmd(optparser)
+    opts, args = optparser.parse_args()
+
+    header = read_fd_header(sys.stdin.fileno())
+    data_desc = parse_header(header)
+    cmd = 'pv'
+
+    if opts.name:                           cmd += ' --name ' + quote(opts.name)
+    if data_desc.size != None:              cmd += ' -s %s' % (data_desc.size,)
+    if not opts.no_wait:                    cmd += ' --wait'
+    if opts.cursor:                         cmd += ' --cursor'
+
+
+    if opts.print_cmd:
+        print cmd
+    else:
+        os.write(sys.stdout.fileno(), header)
+        safe_system(cmd)
+
+if __name__ == '__main__':
+    exception_handler(main)

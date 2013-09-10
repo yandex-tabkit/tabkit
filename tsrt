@@ -1,0 +1,149 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys
+import os
+from pipes import quote
+import multiprocessing
+from optparse import OptionParser, Option
+
+from tabkit.datasrc import merge_data_fields, merge_data_order, DataDesc, DataOrder
+from tabkit.datasrc import unix_sort_flags
+from tabkit.header import make_header, parse_header_order, field_split, pass_meta
+from tabkit.utils import safe_system, exception_handler, FilesList, OptUtils
+
+def make_sort_keys(desc):
+    sort_keys = []
+    for field_order in desc.order:
+        field_num = desc.field_index(field_order.name) + 1
+        sort_key = '-k%d,%d' % (field_num, field_num)
+        sort_key += unix_sort_flags(field_order)
+        sort_keys.append(sort_key)
+    return sort_keys
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] [files]',
+        option_list = [
+            Option('-k', '--key',         dest='keys', action="append", default=[],
+                help="key must be in form FIELDNAME[:desc][:num][:general][:human][:month]"
+            ),
+            Option('-R', '--random-sort', dest="random_sort", action="store_true"),
+            Option('-c',                  dest="check", action="store_true", help="check sorting"),
+            Option('-C',                  dest="check_quiet", action="store_true", help="check sorting (quiet mode)"),
+            Option('-r',                  dest="reverse", action="store_true", help="reverse the result of comparisons"),
+            Option('-n',                  dest="numeric", action="store_true", help="compare according to string numerical value"),
+            Option('-m', '--merge',       dest="merge", action="store_true"),
+            Option('-s', '--stable',      dest="stable", action="store_true"),
+            Option('-S', '--buffer-size', dest="buffer_size"),
+            Option('-T', '--temporary-directory', dest="tmp_dir"),
+            Option('-u', '--unique',      dest="unique", action="store_true"),
+            Option('--batch-size',        dest="nmerge", type="int", default=max(8, multiprocessing.cpu_count())),
+            Option('--compress-program',  dest="compress_program"),
+            Option('--pv', '--add-size',  dest="add_size", action='store_true',
+                help='add #SIZE: (for tpv), but header flushed after file sorted if not all data with #SIZE'
+            ),
+            Option('--sc', '--stream-check',    dest="stream_check",    action="store_true",
+                help="like -C, but print lines to stdout"
+            ),
+
+        ],
+    )
+    OptUtils.add_header(optparser)
+    OptUtils.add_no_out_header(optparser)
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_print_cmd(optparser)
+    OptUtils.add_meta(optparser)
+    opts, args = optparser.parse_args()
+    if opts.random_sort and opts.unique:
+        raise Exception('Conflicting options -R and -u')
+    if opts.random_sort and opts.merge:
+        raise Exception('Conflicting options -R and -m')
+    if opts.keys and opts.random_sort:
+        raise Exception('Conflicting options -R and -k')
+    if opts.check and opts.check_quiet:
+        raise Exception('Conflicting options -c and -C')
+
+    sort_cmd = 'sort'
+    if opts.add_size or opts.stream_check:
+        sort_cmd = 'tabkit-sort'
+
+    global_key_modifier = ''
+    if opts.numeric:
+        global_key_modifier += ':num'
+    if opts.reverse:
+        global_key_modifier += ':desc'
+
+    keys = [
+        sort_key + global_key_modifier
+        for key in opts.keys
+        for sort_key in field_split(key)
+    ]
+
+    files = FilesList(args, header=opts.header)
+    output_desc = files.concat_desc()
+    requested_order = None
+    total_size = 0
+    for fname, desc in files.names_descs():
+        if not keys: # tsrt без ключа = сортировка по всем полям
+            keys = [field.name+global_key_modifier for field in desc.fields]
+        if total_size != None:
+            if desc.size != None:
+                total_size += desc.size
+            else:
+                total_size = None
+        if not requested_order:
+            requested_order = DataOrder(list(parse_header_order(keys)))
+        if opts.merge:
+            if not desc.order.is_ordered_by(requested_order):
+                raise Exception('File %r is not properly ordered' % (fname,))
+
+    if opts.merge and not requested_order:
+        for fname, desc in files.names_descs():
+            if requested_order:
+                requested_order = merge_data_order(requested_order, desc.order)
+            else:
+                requested_order = desc.order
+        if not requested_order:
+            raise Exception('Specify -k option')
+
+    output_desc = DataDesc(
+        output_desc.fields,
+        requested_order,
+        size = total_size,
+        meta=pass_meta(files.concat_meta(), opts)
+    )
+
+    sort_cmd = "LC_ALL=C %s -t$'\\t' " % sort_cmd
+    sort_cmd += ' '.join(make_sort_keys(output_desc))
+    if opts.numeric and not keys: sort_cmd += ' -n'
+    if opts.reverse and not keys: sort_cmd += ' -r'
+    if opts.random_sort:        sort_cmd += ' -R'
+    if opts.check:              sort_cmd += ' -c'
+    if opts.check_quiet:        sort_cmd += ' -C'
+    if opts.merge:              sort_cmd += ' -m'
+    if opts.nmerge:             sort_cmd += ' --batch-size=' + str(opts.nmerge)
+    if opts.stable:             sort_cmd += ' -s'
+    if opts.buffer_size:        sort_cmd += ' -S ' + quote(opts.buffer_size)
+    if opts.tmp_dir:            sort_cmd += ' -T ' + quote(opts.tmp_dir)
+    if opts.unique:             sort_cmd += ' -u'
+    if opts.compress_program:   sort_cmd += ' --compress-program=' + quote(opts.compress_program)
+    if opts.stream_check:       sort_cmd += ' --stream-check'
+    if opts.add_size and output_desc.size==None: sort_cmd += ' --add-size'
+    sort_cmd += ' ' + files.cmd_args_str()
+
+    if opts.print_cmd:
+        print sort_cmd
+    else:
+        if not (opts.no_out_header or opts.check or opts.check_quiet):
+            output_header = make_header(output_desc)
+            if opts.add_size and output_desc.size==None:
+                output_header = output_header.rstrip('\n') + ' #SIZE: '
+            os.write(sys.stdout.fileno(), output_header)
+            sys.stdout.flush()
+
+        safe_system(sort_cmd)
+
+if __name__ == '__main__':
+    exception_handler(main)
+

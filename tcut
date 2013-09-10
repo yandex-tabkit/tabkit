@@ -1,0 +1,101 @@
+#!/usr/bin/python
+
+import sys
+import os
+from optparse import OptionParser, Option
+from itertools import islice, groupby
+
+from tabkit.datasrc import DataDesc, DataOrder, convertible
+from tabkit.header import make_header, pass_meta
+from tabkit.utils import safe_system, exception_handler, FilesList, OptUtils
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] [files]',
+        option_list = [
+            Option('-f', dest="fields_keep", action="append", help="fields to keep", default=[]),
+            Option('-r', dest="fields_remove", action="append", help="or fields to remove", default=[]),
+            Option('-z', dest="gzip", action="store_true", help="assume all plain files are gzipped"),
+        ],
+    )
+    OptUtils.add_header(optparser)
+    OptUtils.add_no_out_header(optparser)
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_print_cmd(optparser)
+    OptUtils.add_meta(optparser)
+    opts, args = optparser.parse_args()
+
+    files = FilesList(args, gzip=opts.gzip, header=opts.header)
+
+    # calc fields and their types
+    first_desc = list(islice(files, 1))[0].desc()
+    fields = []
+    if opts.fields_keep and opts.fields_remove:
+        optparser.error('-f and -r options are exclusive')
+    if opts.fields_keep:
+        first_fields_map = dict((field.name, field) for field in first_desc.fields)
+        for field in opts.fields_keep:
+            for subfield in field.replace(';', ',').split(','):
+                fields.append(first_fields_map[subfield])
+    if opts.fields_remove:
+        field_names = []
+        for field in opts.fields_remove:
+            field_names.extend(field.replace(';', ',').split(','))
+        for field in first_desc.fields:
+            if not field.name in field_names:
+                fields.append(field)
+    if not fields:
+        optparser.error(
+            'Specify at least one output field name with -f'
+            ' option or at least one field to remove with -r option'
+        )
+    field_names = list(field.name for field in fields)
+
+    # calc ordering
+    order = None
+    if len(files) == 1:
+        for fname, desc in files.names_descs():
+            order_fields = []
+            for field in desc.order:
+                if field.name in field_names:
+                    order_fields.append(field)
+                else:
+                    break
+            order = DataOrder(order_fields)
+
+    out_desc = DataDesc(fields, order=order, meta=pass_meta(files.concat_meta(), opts))
+
+    if not (opts.print_cmd or opts.no_out_header):
+        os.write(sys.stdout.fileno(), make_header(out_desc))
+
+    for grp_fields, ifiles in groupby(files, lambda ifile: ifile.desc().fields):
+        grp_idx_map = dict((field.name, fnum + 1) for fnum, field in enumerate(grp_fields))
+        grp_fields_map = dict((field.name, field) for fnum, field in enumerate(grp_fields))
+        cut_fields = []
+        for field in fields:
+            if field.name not in grp_idx_map:
+                raise Exception('Field %r not found in input file %r' % (
+                    field.name, [ifile.fname for ifile in ifiles]
+                ))
+            if cut_fields and grp_idx_map[field.name] <= max(cut_fields):
+                raise Exception('Incompatible position of field %r in %r' % (
+                    field.name, [ifile.fname for ifile in ifiles]
+                ))
+            if not convertible(grp_fields_map[field.name].type, field.type):
+                raise Exception('Incompatible type %r (was %r) of field %r in file %r' % (
+                    grp_fields_map[field.name].type,
+                    field.type,
+                    field.name,
+                    fname
+                ))
+            cut_fields.append(grp_idx_map[field.name])
+
+        cut_fields = ','.join(map(str, cut_fields))
+        cmd = 'cut -f %s %s' % (cut_fields, ' '.join(ifile.cmd_arg() for ifile in ifiles))
+        if opts.print_cmd:
+            print cmd
+        else:
+            safe_system(cmd)
+
+if __name__ == '__main__':
+    exception_handler(main)

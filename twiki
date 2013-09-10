@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+echo $'%%(csv delimiter=; head=1)'
+sed -r '
+1   s/^#\s*([^#]*).*$/\1/
+1   s/[ \t]+$//
+1   s/[ \t]+/;/g
+2,$ s/\t/;/g
+' "$@"
+echo '%%'
+

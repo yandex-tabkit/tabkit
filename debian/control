@@ -1,0 +1,17 @@
+Source: tabkit-yandex
+Section: unknown
+Priority: optional
+Maintainer: Alexey Akimov <akimov@yandex-team.ru>
+Build-Depends: debhelper (>= 7.0)
+X-Python-Version: >= 2.5
+Vcs-Svn: svn+ssh://svn.yandex.ru/yacontext/junk/mrkit
+Standards-Version: 3.9.1
+
+Package: tabkit-yandex
+Architecture: any
+Depends: ${python:Depends}, ${shlibs:Depends}, ${misc:Depends}, python-yacontext-common, yacontext-coreutils
+XB-Python-Version: >=2.5
+Description: tabkit
+ python wrappers around coreutils (cat, join, sort, cut, awk, pv)
+ to support tab-separated files with headers.
+ Headers describe field names, types and data ordering.

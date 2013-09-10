@@ -1,0 +1,140 @@
+#!/usr/bin/python
+# coding: utf-8
+"""
+Примеры:
+
+Подсчет CTR и кликов по pageid:
+
+    tgrp_awk -g 'pageid=pageid' -o 'clicks=sum(clicks)' -o 'ctr=clicks/sum(shows)'
+
+Накопительный подсчет CTR по всему файлу,
+с печатью результатов через каждые 1000 показов:
+
+    tgrp_awk -g 'shows_sum//1000' -O 'shows_sum=sum(shows); ctr=sum(clicks)/shows_sum'
+
+    в данном случае важно, чтобы переменная называлась shows_sum, а не shows,
+    иначе в параметре -g непонятно какой shows брать, из входного файла, или результат
+    суммирования. Если очень хочется назвать результирующее поле shows, можно сделать так:
+
+    tgrp_awk -g '_s//1000' -O '_s=sum(shows); shows=_s; ctr=sum(clicks)/_s'
+
+    переменные, имена которых начинаются с подчеркивания не выводятся.
+    Чтобы не получать CTR в виде 1.05e-3, делаем так:
+
+    tgrp_awk -g '_s//1000' -O '_s=sum(shows); ctr=sprintf("%0.10f", sum(clicks)/_s)'
+
+Выбор самой ранней сохраненной копии документа для урла:
+
+    tgrp_awk -g 'url=url' -o 'path=ifmin(addtime, path)'
+
+Дано: динамика по пейджам, т.е. для каждого pageid есть статистика (например, показы) по диапазону дат.
+Нужно: пронормировать статистику на первую дату диапазона.
+
+    tsrt -k pageid,date \\
+    | tgrp_awk --expose-groups -G pageid -o 'date=last(date); shows_r=last(shows)/first(shows);'
+
+Задачка со звездочкой: пронормировать не по первой, а по произвольной дате DATE0:
+
+    tmap -a -o "is_date0 = (date == '$DATE0')" \\
+    | tsrt -k "pageid,is_date0:desc,date" \\
+    | tgrp_awk --expose-groups -G pageid -o 'date=last(date); shows_r=last(shows)/first(shows)' \\
+    | tsrt -k "pageid,date"
+
+Без --expose-groups задача решается с использованием tjoin
+(предполагаем что SRCFILE уже отсортирован по pageid,date):
+
+    tgrp_awk -G pageid -o "shows=sum(shows * (date == '$DATE0'))" $SRCFILE | tjoin -j pageid $SRCFILE -
+
+Способ с --expose-groups хорош (псевдо-)линейностью.
+"""
+
+import sys
+import os
+from optparse import OptionParser, Option, OptionValueError
+from tabkit.utils import exception_handler, FilesList, safe_system, OptUtils, exec_path
+from tabkit.header import parse_header, make_header, pass_meta
+from tabkit.awk_grp import awk_grp
+
+def fill_grp_exprs(option, opt_str, value, parser):
+    if not hasattr(parser.values, 'exprs'):
+        parser.values.exprs = []
+    grp_type = None
+    if opt_str == '-o':
+        grp_type = 'grp'
+    elif opt_str == '-O':
+        grp_type = 'acc'
+    else:
+        raise OptionValueError('Unexpected option %r' % (opt_str,))
+    parser.values.exprs.append((grp_type, value))
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] [files]',
+        option_list = [
+            Option('-g', dest="grouping_expr", default=None),
+            Option('-G', dest="grouping_expr_short", default=None,
+                help=u"-G 'a;b' аналогично -g 'a=a;b=b'",
+            ),
+            Option('-o', dest="grp_output_expr", action="callback", callback=fill_grp_exprs, type="str",
+                help=u"Выражение, вычисляемое для каждой группы",
+            ),
+            Option('-O', dest="acc_output_expr", action="callback", callback=fill_grp_exprs, type="str",
+                help=u"Выражение, вычисляемое накопительно по всему файлу",
+            ),
+            Option('-e', "--expose-groups", action="store_true",
+                help=(
+                    u"Выводить результат группировки не только для группы, "
+                    u"но и для каждой группируемой строки"
+                )
+            ),
+            Option('--awk-args', dest='awk_args', help='Args to awk', default='')
+        ],
+    )
+    OptUtils.add_awk_exec(optparser)
+    OptUtils.add_header(optparser)
+    OptUtils.add_no_out_header(optparser)
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_print_cmd(optparser)
+    OptUtils.add_meta(optparser)
+    opts, args = optparser.parse_args()
+    files = FilesList(args, header=opts.header)
+    desc = files.concat_desc()
+    concat_meta = files.concat_meta()
+    desc.meta = pass_meta(concat_meta, opts)
+
+    output_only_assigned = True
+    if opts.grouping_expr and opts.grouping_expr_short:
+        raise Exception("Use only one of -g, -G")
+    elif opts.grouping_expr:
+        grouping_expr = opts.grouping_expr
+    elif opts.grouping_expr_short:
+        output_only_assigned = False
+        grouping_expr = opts.grouping_expr_short
+    else:
+        grouping_expr = None
+
+    if hasattr(opts, 'exprs'):
+        exprs = opts.exprs
+    else:
+        exprs = []
+
+    awk_cmd, output_desc = awk_grp(desc, grouping_expr, exprs, output_only_assigned, opts.expose_groups)
+
+    if opts.awk_exec and 'MRKIT_LOCAL_RUN' in os.environ:
+        output_desc.meta.setdefault(
+            'mr_upload_files',
+            concat_meta.get('mr_upload_files', [])
+        ).append(exec_path(opts.awk_exec))
+
+    if opts.print_cmd:
+        print awk_cmd.cmd_line(opts.awk_exec, opts.awk_args)
+        print '---'
+        print awk_cmd.tostr(ident=4, newline='\n')
+    else:
+        if not opts.no_out_header:
+            os.write(sys.stdout.fileno(), make_header(output_desc))
+        safe_system(awk_cmd.cmd_line(opts.awk_exec, opts.awk_args) + ' ' + files.cmd_args_str())
+
+if __name__ == '__main__':
+    exception_handler(main)
+

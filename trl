@@ -1,0 +1,75 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys
+import os
+from optparse import OptionParser, Option
+
+from tabkit.header import parse_header, make_header, DataDesc
+from tabkit.utils import exception_handler, OptUtils
+
+from random import random
+import math
+
+def get_weighted_lines(stream, pos=-1):
+    for line in stream:
+        weight = 1. if pos == -1 else float(line.split('\t')[pos])
+        yield (line, weight)
+
+def get_sample(weighted_lines, cnt):
+    total_weight = 0.
+    random_lines = [None]*cnt
+
+    for line, weight in weighted_lines:
+        if weight < 0:
+            raise Exception('weight must be >=0')
+        if math.fabs(weight) <= 1e-32:
+            continue
+        total_weight += weight
+        prob_border = 1.*weight/total_weight
+        for i in xrange(cnt):
+            if random() < prob_border:
+                random_lines[i] = line
+
+    for line in random_lines:
+        if line != None:
+            yield line
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options]\n\nGenerate random sample.',
+        option_list = [
+            Option(
+                '-c', '--count', dest="cnt", type="int", default=0,
+                help = "Number of lines to return."
+            ),
+            Option(
+                '-k', '--weight-key', dest="weight", default=None,
+                help = "Field with floating-point weight, 1.0 by default"
+            ),
+        ]
+    )
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_header(optparser)
+    OptUtils.add_no_out_header(optparser)
+
+    opts, args = optparser.parse_args()
+
+    if opts.cnt <= 0:
+        raise Exception('set count to posive value') # TODO: 0 as random shuffle
+
+    parsed_header = parse_header(opts.header if opts.header else sys.stdin.next())
+    if not opts.no_out_header:
+        header = make_header(DataDesc(fields=parsed_header.fields))
+        print header,
+
+    wlines = get_weighted_lines(
+        sys.stdin,
+        parsed_header.field_names.get(opts.weight, -1)
+    )
+
+    for line in get_sample(wlines, opts.cnt):
+        print line,
+
+if __name__ == '__main__':
+    exception_handler(main)

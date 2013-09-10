@@ -1,0 +1,29 @@
+#!/usr/bin/python
+
+import sys, os
+from optparse import OptionParser, Option
+
+from tabkit.utils import exception_handler, OptUtils
+from tabkit.header import parse_header, make_header, read_fd_header, parse_header_order, field_split
+
+def main():
+    optparser = OptionParser(
+        option_list = [
+            Option("-o", "--order"),
+        ],
+    )
+    OptUtils.add_pytrace(optparser)
+    opts, args = optparser.parse_args()
+
+    header = read_fd_header(sys.stdin.fileno())
+    data_desc = parse_header(header)
+
+    if opts.order is not None:
+        data_desc = data_desc.copy(order=list(parse_header_order(field_split(opts.order))))
+
+    os.write(sys.stdout.fileno(), make_header(data_desc))
+    os.execlp('cat', 'cat')
+
+if __name__ == '__main__':
+    exception_handler(main)
+

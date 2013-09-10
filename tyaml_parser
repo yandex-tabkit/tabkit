@@ -1,0 +1,81 @@
+#!/usr/bin/python
+
+import sys
+from pipes import quote
+from optparse import OptionParser, Option
+
+from yacontext.common.yamlcompat import load_documents
+from yacontext.common.safe_popen import SafePopen
+
+from tabkit.utils import exception_handler
+
+def StrList(list_separator):
+    def strlist(val):
+        return list_separator.join(str(item) for item in val)
+    return strlist
+
+def make_lines(files, out_field_funcs, field_separator):
+    for fobj in files:
+        for rec in load_documents(fobj):
+            vals = (str(func(rec)) for func in out_field_funcs)
+            yield field_separator.join(vals) + "\n"
+
+def opener(fnames):
+    for fname in fnames:
+        with open(fname) as fobj:
+            yield fobj
+
+def gzip_opener(fnames):
+    for fname in fnames:
+        popen = SafePopen("gzip -dc %s" % (quote(fname),))
+        try:
+            yield popen.stdout
+        finally:
+            popen.close()
+
+def parse(opts, args):
+    if args:
+        if opts.gzip:
+            files = gzip_opener(args)
+        else:
+            files = opener(args)
+    else:
+        files = [sys.stdin]
+
+    out_field_funcs = []
+    out_field_names = []
+    for field in opts.out_field:
+        if '=' not in field:
+            raise Exception("OUT_FIELD must be in the form of field_name=expr")
+        name, expr_str = (val.strip() for val in field.split('=', 1))
+        if not name.isalnum() or name[0].isdigit():
+            raise Exception("bad field_name %r, must be alphanumeric and not start with digit")
+        expr_func = eval('lambda r: ' + expr_str, {'J':StrList(opts.list_separator)}, {})
+
+        out_field_names.append(name)
+        out_field_funcs.append(expr_func)
+
+    sys.stdout.write("# " + " ".join(out_field_names) + "\n")
+    sys.stdout.writelines(make_lines(
+        files,
+        out_field_funcs,
+        opts.field_separator,
+    ))
+
+def main():
+    parser = OptionParser(
+        option_list = [
+            Option('-o', dest='out_field', default=[], action='append'),
+            Option('-t', '--field-separator', dest='field_separator', default='\t'),
+            Option('-l', '--list-separator', dest='list_separator', default='\t'),
+            Option('-z', dest='gzip', action="store_true", help="ungzip input files"),
+        ]
+    )
+    opts, args = parser.parse_args()
+
+    parse(opts, args)
+
+if __name__ == '__main__':
+    exception_handler(main)
+
+

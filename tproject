@@ -1,0 +1,83 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys, os, re
+from optparse import OptionParser, Option
+from yacontext.contrib.odict import OrderedDict
+from itertools import groupby
+
+from tabkit.utils import exception_handler, OptUtils
+from tabkit.pyparser import parse_file
+from tabkit.header import field_split
+
+def keygetter(keys):
+    def get_key(rec):
+        return tuple(getattr(rec, key) for key in keys)
+    return get_key
+
+def main():
+    optparser = OptionParser(
+        option_list = [
+            Option('-k', '--key'),
+            Option('-d', '--default'),
+        ]
+    )
+    OptUtils.add_pytrace(optparser)
+    opts, args = optparser.parse_args()
+    recs = parse_file(sys.stdin)
+
+    # проверяем корректность опций и аргументов
+    if not opts.key:
+        optparser.error('Please specify KEY')
+    keys = field_split(opts.key)
+
+    fields = set(field.name for field in recs.data_desc.fields)
+    if not fields.issuperset(keys):
+        optparser.error("Key field not found: %r" % (list(set(keys) - fields),))
+    if not fields.issuperset(args):
+        optparser.error("Projection fields not found: %r" % (list(set(args) - fields),))
+    if set(keys).intersection(args):
+        optparser.error("Key fields intersects with projection fields: %r" % (list(set(keys).intersection(args)),))
+
+    # находим поля, значения которых будем выводить
+    data_fields = []
+    for field in recs.data_desc.fields:
+        if field.name not in (keys + args):
+            data_fields.append(field.name)
+
+    # накапливаем значения
+    res = []
+    projections = OrderedDict()
+    recno = 0
+    for key, recs in groupby(recs, keygetter(keys)):
+        key_res = {}
+        for rec in recs:
+            vec = tuple(getattr(rec, arg) for arg in args)
+            projections[vec] = 1
+            if vec in key_res:
+                recno0, vals = key_res[vec]
+                raise Exception('Conflicting data lines: %r and %r' % (recno0 + 2, recno + 2))
+            else:
+                key_res[vec] = (recno, tuple(getattr(rec, field) for field in data_fields))
+            recno += 1
+        res.append((key, key_res))
+
+    # выводим заголовок
+    print "# " + ("\t".join(keys + [field + "_" + ("_".join(str(v) for v in proj)) for field in data_fields for proj in projections]))
+
+    # выводим данные
+    default = None
+    if opts.default:
+        default = (None, [opts.default] * len(data_fields))
+    for key, values in res:
+        if default:
+            line = tuple(values.get(proj, default)[1][fno] for fno, field in enumerate(data_fields) for proj in projections)
+        else:
+            line = tuple(values[proj][1][fno] for fno, field in enumerate(data_fields) for proj in projections)
+        print "\t".join(str(val) for val in key + line)                
+
+if __name__ == '__main__':
+    import gc
+    gc.disable()
+    exception_handler(main)
+

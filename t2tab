@@ -1,0 +1,52 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys
+import os
+from optparse import OptionParser, Option
+
+from tabkit.header import make_header
+from tabkit.datasrc import DataDesc, merge_data_desc, DataField
+from tabkit.utils import exception_handler, OptUtils, safe_system, FilesList
+
+def simple_desc(desc):
+    return DataDesc(fields=[DataField(field.name, 'any') for field in desc.fields])
+
+def remove_types(desc):
+    desc.fields = [DataField(field.name, 'any') for field in desc.fields]
+    return desc
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options]\n\nConvert tabkit header to tabtools header.',
+        option_list = [
+            Option(
+                '-n', '--new_header_only', dest="header_only", action='store_true',
+                help='print only new header'
+            ),
+            Option(
+                '-t', '--types', dest='types_only', action='store_true',
+                help='remove omly type marks'
+            )
+        ]
+    )
+    OptUtils.add_pytrace(optparser)
+    opts, args = optparser.parse_args()
+
+    func = remove_types if opts.types_only else simple_desc
+
+    out_desc = None
+    for ifile in FilesList(args):
+        if out_desc is None:
+            out_desc = func(ifile.desc())
+            os.write(sys.stdout.fileno(), make_header(out_desc))
+        else:
+            # проверяем совместимость хедеров
+            merge_data_desc(out_desc, func(ifile.desc()))
+
+        if not opts.header_only:
+            safe_system('cat %s' % (ifile.cmd_arg(),))
+
+if __name__ == '__main__':
+    exception_handler(main)
+

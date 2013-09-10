@@ -1,0 +1,392 @@
+#!/usr/bin/python
+# coding: utf-8
+
+from __future__ import with_statement, print_function
+
+import sys, os, fcntl
+from optparse import OptionParser, Option
+from pipes import quote
+
+from tabkit.datasrc import DataDesc, DataOrder, DataFieldOrder, DataField, rename_fields
+from tabkit.header import make_header, field_split
+from tabkit.utils import safe_system, exception_handler, FilesList, parse_renamings, OptUtils
+from tabkit.safe_popen import SafePopen
+from tabkit.awk import awk_filter_map
+
+def set_cloexec_flag(fd, cloexec):
+    """ Скопизжено из модуля subprocess """
+    try:
+        cloexec_flag = fcntl.FD_CLOEXEC
+    except AttributeError:
+        cloexec_flag = 1
+
+    old = fcntl.fcntl(fd, fcntl.F_GETFD)
+    if cloexec:
+        fcntl.fcntl(fd, fcntl.F_SETFD, old | cloexec_flag)
+    else:
+        fcntl.fcntl(fd, fcntl.F_SETFD, old & ~cloexec_flag)
+
+def raise_conflict(name):
+    raise Exception((
+        "Field name {0!r} presents in both files,"
+        " use -r/-o/-c option to resolve conflict"
+    ).format(name))
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] <file1> <file2>',
+        option_list = [
+            Option('-1', dest="fields1", help="join using FIELDS1 from file 1"),
+            Option('-2', dest="fields2", help="join using FIELDS2 from file 2"),
+            Option('-j', dest="fields", help="equivalent to `-1 FIELDS -2 FIELDS'"),
+            Option('-a', dest="filenum_a", action="append", default=[],
+                help=("print unpairable lines coming from file FILENUM, "
+                      "where FILENUM is 1 or 2, corresponding to FILE1 or FILE2")
+            ),
+            Option('-v', dest="filenum_v", action="append", default=[],
+                help="like -a FILENUM, but suppress joined output lines"
+            ),
+            Option('-e', dest="empty", help="replace missing input fields with EMPTY"),
+            Option('-o', dest="output", help="comma-separated list of field names"),
+            Option('-r', dest="rename", action="append", default=[],
+                help=(
+                "Rename some or all fields in file. "
+                "E.g. rule '-r 2.foo=myfoo' renames 'foo' column in second file. "
+                "Opposite notation also works: -r myfoo=2.foo will do the same. "
+                "Also you may ask to rename all fields in a file: '1.*=*1' or '2.*=right_*.' "
+                "If two renaming rules try to rename the same field then "
+                "successive rule overrides preceding one."
+                "It might be obvious but just in case: -1/-2/-j options always operate "
+                "on renamed fields. In particular, this will never work: "
+                "tjoin -j key -r '2.*=*2', instead you must write: "
+                "tjoin -1 key -2 key2 -r '2.*=*2'"
+                )
+            ),
+            Option('-c', dest="filenum_c", action="store", type=int,
+                help="Get conflicting fields form file FILENUM"
+            ),
+        ],
+    )
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_print_cmd(optparser)
+    opts, args = optparser.parse_args()
+        
+    if len(args) != 2:
+        raise Exception("Specify exactly two files to join")
+    if opts.fields and (opts.fields1 or opts.fields2):
+        raise Exception("Conflicting options -j and (-1 or -2)")
+    if not (opts.fields or (opts.fields1 and opts.fields2)):
+        raise Exception("Specify fields to use for join")
+    if opts.fields:
+        key_fields = (opts.fields, opts.fields)
+    else:
+        key_fields = (opts.fields1, opts.fields2)
+
+    if set(";,").intersection("".join(key_fields)):
+        main_compound_key(opts, args, tuple(field_split(key) for key in key_fields))
+    else:
+        main_simple_key(opts, args, key_fields)
+        
+def main_compound_key(opts, args, key_fields):
+    '''
+    tmap_expr[0] -> tmap_awk  tmap_awk <- tmap_expr[1]
+                           |  |
+                           V  V
+     join_output_fields -> join 
+                            |
+                            V
+                           sed
+                            |
+                            V
+      cut_output_fields -> cut
+    '''
+    files = FilesList(args, stdin_fallback=False)
+    descs = [file.desc() for file in files]
+    renamings = parse_renamings(opts.rename, descs)
+    descs = [rename_fields(desc, renamings[fileno]) for fileno, desc in enumerate(descs)]
+    
+    key_left, key_right = key_fields
+    if len(key_left) != len(key_right):
+        raise Exception("Key lengths do not match: {0} != {1}".format(len(key_left), len(key_right)))
+    key_len = len(key_left)
+
+    # выбираем имя ключа
+    join_key = 'JOIN_KEY'
+    join_key_num = 0
+    while any(desc.has_field(join_key) for desc in descs):
+        join_key = 'JOIN_KEY' + str(join_key_num)
+        join_key_num += 1
+
+    # Нужно понять, какие поля на выходе
+    output_field_names = []
+    if opts.output:
+        output_field_names = field_split(opts.output)
+    else:
+        common_key_fields = set(key_left) & set(key_right)
+        for fileno, desc in enumerate(descs):
+            for field in desc.fields:
+                if fileno > 0 and field.name in key_fields[fileno]:
+                    continue
+                if field.name in output_field_names:
+                    if not opts.filenum_c:
+                        raise_conflict(field.name)
+                else:
+                    output_field_names.append(field.name)
+
+    # Теперь поймём, откуда их брать
+    tmap_exprs = [["{0}=({1})".format(join_key, ',"\\\\v",'.join(keys))] for keys in key_fields]
+    join_output_fields = []
+    cut_output_fields = []
+    output_fields = []
+    cur_inkey_index = None
+    cur_injoin_index = 0
+    # а ну-ка разберись-ка что тут происходит
+    for field_name in output_field_names:
+        field_inkey_index = [
+            (fileno, keys.index(field_name)) 
+            for fileno, keys in enumerate(key_fields) 
+            if field_name in keys
+        ]
+        
+        if len(field_inkey_index) > 0: # это ключевое поле
+            field_fileno, field_inkey_index = field_inkey_index.pop(0)
+            if cur_inkey_index is None or cur_inkey_index > field_inkey_index:
+                join_output_fields.append("0")
+                cur_inkey_index = cur_inkey_index - key_len if cur_inkey_index else 0
+            cur_injoin_index += field_inkey_index - cur_inkey_index
+            cur_inkey_index = field_inkey_index + 1
+            output_fields.append(descs[field_fileno].get_field(field_name))
+            
+        else:
+            if cur_inkey_index is not None:
+                cur_injoin_index += key_len - cur_inkey_index
+            cur_inkey_index = None
+            
+            src_filenos = [
+                fileno 
+                for fileno, desc in enumerate(descs)
+                if desc.has_field(field_name)
+            ]
+            
+            if len(src_filenos) == 0:
+                raise Exception("Unknown field {0!r} specified in output format".format(field_name))
+            elif len(src_filenos) > 1:
+                if opts.filenum_c:
+                    field_fileno = opts.filenum_c - 1
+                else:
+                    raise_conflict(field_name)
+            else:                    
+                field_fileno = src_filenos.pop()
+            
+            tmap_exprs[field_fileno].append(field_name)
+            join_output_fields.append("{0}.{1}".format(field_fileno + 1, len(tmap_exprs[field_fileno])))
+            output_fields.append(descs[field_fileno].get_field(field_name))
+            
+        cur_injoin_index += 1
+        cut_output_fields.append(str(cur_injoin_index))
+        
+    # проверяем сортировку
+    output_order = []
+    for filenum, (key, desc) in enumerate(zip(key_fields, descs)):
+        order = desc.order
+        if not order.is_ordered_by(
+            DataOrder([DataFieldOrder(key_field) for key_field in key])
+        ):
+            raise Exception("File {0!r} must be ordered by {1!r}".format(
+                filenum + 1, ";".join(key)
+            ))
+        output_order.append([field for field in order.data_order if field.name not in key and field.name in output_field_names])
+
+    # восстанавливаем порядок сортировки
+    raw_output_order = (
+        zip(
+            (DataFieldOrder(key) for key in key_left), 
+            (DataFieldOrder(key) for key in key_right), 
+        ) 
+        + [(key, None) for key in output_order[0] + output_order[1]]
+    )
+    output_order = []
+    for key, key_syn in raw_output_order:
+        if key.name in output_field_names:
+            output_order.append(key)
+        elif key_syn and key_syn.name in output_field_names:
+            output_order.append(key_syn)
+        else:
+            break
+
+                
+    # собираем всё вместе
+    
+    # tmap
+    # TODO: падать если в полях ключа присутствует \v
+    tmap = (
+        awk_filter_map(desc, [], tmap_expr)[0].cmd_line() 
+        + " " + file.cmd_arg() 
+        for  file, desc, tmap_expr in zip(files, descs, tmap_exprs)
+    )
+
+    # join          
+    join_cmd = "LC_ALL=C join -t $'\\t' -j 1"
+    join_cmd += ' -o ' + ','.join(join_output_fields)
+    if opts.empty:
+        join_cmd += ' -e ' + quote(opts.empty)
+    for filenum in opts.filenum_a:
+        join_cmd += ' -a ' + filenum
+    for filenum in opts.filenum_v:
+        join_cmd += ' -v ' + filenum
+
+    # sed
+    sed_cmd = "| sed 's/\\v/\\t/g' "
+            
+    # cut
+    cut_cmd = "| cut -f " + ",".join(cut_output_fields)
+    
+    output_desc = DataDesc(
+        fields = output_fields,
+        order = output_order,
+    )
+    
+    if opts.print_cmd:
+        print(
+            join_cmd
+            + " <({0})".format(next(tmap))
+            + " <({0})".format(next(tmap))
+            + sed_cmd
+            + cut_cmd
+        )
+
+    else:
+        with SafePopen(next(tmap)) as popen_left:
+            with SafePopen(next(tmap)) as popen_right:
+                # subprocess выставляет флажок fcntl.FD_CLOEXEC для stdout,
+                # снимаем его, чтобы дескрипторы были доступны join-у.
+                set_cloexec_flag(popen_left.stdout.fileno(), cloexec=False)
+                set_cloexec_flag(popen_right.stdout.fileno(), cloexec=False)
+                cmd = (
+                    join_cmd
+                    + " /dev/fd/{0}".format(popen_left.stdout.fileno())
+                    + " /dev/fd/{0}".format(popen_right.stdout.fileno())
+                    + sed_cmd
+                    + cut_cmd
+                )
+                os.write(sys.stdout.fileno(), make_header(output_desc))
+                sys.stdout.flush()
+                safe_system(cmd)
+
+def make_desc_cmd(
+    descs, key_fields, output_field_names=None,
+    filenum_c=None, filenum_a=None, filenum_v=None,
+    empty=None, renamings=None,
+):
+    filenum_a = [] if filenum_a is None else filenum_a
+    filenum_v = [] if filenum_v is None else filenum_v
+    renamings = [{},{}] if renamings is None else renamings
+
+    # переименовываем поля (опция -r)
+    new_descs = []
+    for filenum, desc in enumerate(descs):
+        key_field_name = key_fields[filenum]
+        new_desc = rename_fields(desc, renamings[filenum])
+        if not new_desc.order.is_ordered_by(
+            DataOrder([DataFieldOrder(key_field_name)])
+        ):
+            raise Exception("File {0!r} must be ordered by {1!r}".format(
+                filenum + 1, key_field_name
+            ))
+        new_descs.append(new_desc)
+
+    # составляем список имен полей для вывода, если не указан явно через -o
+    if output_field_names is None:
+        output_field_names = list(field.name for field in new_descs[0].fields)
+        for field in new_descs[1].fields:
+            if field.name != key_fields[1]:
+                if field.name in output_field_names:
+                    if not filenum_c:
+                        raise_conflict(field.name)
+                else:
+                    output_field_names.append(field.name)
+
+    # генерим форматы вывода для программы join и для хедера
+    output_fields = []
+    output_format = []
+    for field_name in output_field_names:
+        if field_name == key_fields[0]:
+            output_fields.append(new_descs[0].get_field(field_name))
+            output_format.append('0')
+        elif new_descs[0].has_field(field_name) and new_descs[1].has_field(field_name) and field_name not in key_fields:
+            if filenum_c:
+                output_fields.append(new_descs[filenum_c - 1].get_field(field_name))
+                output_format.append('{0}.{1}'.format(
+                    filenum_c,
+                    new_descs[filenum_c - 1].field_index(field_name) + 1,
+                ))
+                data_order = new_descs[2 - filenum_c].order.data_order
+                for field in data_order:
+                    if field.name == field_name:
+                        data_order.remove(field)
+                        break
+            else:
+                raise_conflict(field_name)
+        elif new_descs[0].has_field(field_name):
+            output_fields.append(new_descs[0].get_field(field_name))
+            output_format.append('1.{0}'.format(new_descs[0].field_index(field_name) + 1))
+        elif new_descs[1].has_field(field_name):
+            output_fields.append(new_descs[1].get_field(field_name))
+            output_format.append('2.{0}'.format(new_descs[1].field_index(field_name) + 1))
+        else:
+            raise Exception("Unknown field {0!r} specified in output format".format(field_name))
+
+    # стараемся по максимуму сохранить информацию о сортировке
+    # (сейчас описаны не все ситуации)
+    if not filenum_v and not filenum_a:
+        output_order_raw = list(new_descs[0].order) + list(new_descs[1].order)[1:]
+    else:
+        output_order_raw = [DataFieldOrder(key_fields[0])]
+    # теперь нужно выкинуть поля, отсутствующие в формате вывода
+    output_order = []
+    for field in output_order_raw:
+        if field.name not in output_field_names:
+            break
+        output_order.append(field)
+
+    output_desc = DataDesc(
+        fields = output_fields,
+        order = output_order,
+    )
+
+    join_cmd = "LC_ALL=C join -t '\t' -1 {0} -2 {1}".format(
+        new_descs[0].field_index(key_fields[0]) + 1,
+        new_descs[1].field_index(key_fields[1]) + 1,
+    )
+    join_cmd += ' -o ' + ','.join(output_format)
+    if empty:
+        join_cmd += ' -e ' + quote(empty)
+    for filenum in filenum_a:
+        join_cmd += ' -a ' + filenum
+    for filenum in filenum_v:
+        join_cmd += ' -v ' + filenum
+
+    return output_desc, join_cmd
+
+def main_simple_key(opts, args, key_fields):
+    files = FilesList(args, stdin_fallback=False)
+    descs = [file.desc() for file in files]
+    output_desc, join_cmd = make_desc_cmd(
+        descs,
+        key_fields,
+        output_field_names = field_split(opts.output) if opts.output else None,
+        filenum_c = opts.filenum_c,
+        filenum_v = opts.filenum_v,
+        filenum_a = opts.filenum_a,
+        empty = opts.empty,
+        renamings = parse_renamings(opts.rename, descs),
+    )
+
+    if opts.print_cmd:
+        print(join_cmd)
+    else:
+        os.write(sys.stdout.fileno(), make_header(output_desc))
+        safe_system(join_cmd + ' ' + files.cmd_args_str())
+
+if __name__ == '__main__':
+    exception_handler(main)

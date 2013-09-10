@@ -1,0 +1,102 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys
+import os
+from subprocess import Popen
+from itertools import islice
+from pipes import quote
+from optparse import OptionParser, Option
+from tabkit.header import read_fd_header, read_file_header, parse_header, make_header, pass_meta
+from tabkit.datasrc import DataDesc, merge_data_desc
+from tabkit.utils import exception_handler, proper_reduce, safe_system, OptUtils, input_file_from_cmdline_arg
+
+def cat_generic(opts, args, tot_size):
+    out_desc = None
+    for fname in args:
+        ifile = input_file_from_cmdline_arg(fname, opts.header, gzip=opts.zcat)
+
+        if out_desc != None:
+            # проверяем совместимость хедеров
+            merge_data_desc(out_desc, ifile.desc())
+        else:
+            out_desc = ifile.desc()
+            if len(args) != 1:
+                out_desc = DataDesc(out_desc.fields, [])
+            out_desc.size = tot_size
+            out_desc.meta = pass_meta(out_desc.meta, opts)
+            if not opts.no_out_header:
+                os.write(sys.stdout.fileno(), make_header(out_desc))
+
+        safe_system('cat %s' % (ifile.cmd_arg(),))
+
+def cat_regular_uncompressed(opts, args, tot_size):
+    fnames = " ".join(quote(fname) for fname in args)
+    if opts.header:
+        out_cmd = "cat %s" % (fnames,)
+        desc = parse_header(opts.header)
+    else:
+        out_cmd = "tail -qn +2 %s" % (fnames,)
+        descs = (parse_header(read_file_header(fname)) for fname in args)
+        desc = proper_reduce(merge_data_desc, descs)
+        desc.order = []
+    if opts.pv:
+        out_cmd += "|pv -s %s" % (tot_size,)
+    desc.size = tot_size
+    desc.meta = pass_meta(desc.meta, opts)
+    if not opts.no_out_header:
+        os.write(sys.stdout.fileno(), make_header(desc))
+    os.system(out_cmd)
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] <file1> <file2> ...',
+        option_list = [
+            Option('-p', dest="pv", action="store_true", help="use pv"),
+            Option('-z', dest="zcat", action="store_true", help="use zcat"),
+        ],
+    )
+    OptUtils.add_header(optparser)
+    OptUtils.add_no_out_header(optparser)
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_meta(optparser)
+    opts, args = optparser.parse_args()
+
+    if not args:
+        args = ['/dev/stdin']
+
+    # examine files size
+    tot_size = 0
+    all_regular = True
+    for fname in args:
+        if fname == "-":
+            fname = '/dev/stdin'
+        if not os.path.exists(fname):
+            raise Exception('File does not exist: %r' % (fname,))
+        elif not os.path.isfile(fname):
+            all_regular = False
+        else:
+            if opts.zcat:
+                gzip_list = os.popen('gzip -ql %s' % (quote(fname),))
+                gzip_data = gzip_list.read()
+                if gzip_list.close() != None:
+                    raise Exception('Not in gzip format')
+                gzip_size = int(gzip_data.split()[1])
+                tot_size += gzip_size
+            else:
+                tot_size += os.stat(fname).st_size
+
+    # write data
+    if all_regular and not opts.zcat:
+        cat_regular_uncompressed(opts, args, tot_size)
+    else:
+        if opts.pv:
+            raise Exception('Can use -p only with regular uncompressed files, use "tpv" utility')
+        if all_regular:
+            cat_generic(opts, args, tot_size)
+        else:
+            cat_generic(opts, args, None)
+
+if __name__ == '__main__':
+    exception_handler(main)
+

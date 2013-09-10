@@ -1,0 +1,500 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys, os, select
+from itertools import cycle, groupby
+from optparse import OptionParser, Option
+import subprocess, shutil
+import array
+from StringIO import StringIO
+from functools import wraps
+import fcntl, errno
+
+from tabkit.header import make_header, parse_header, DataDesc
+from tabkit.datasrc import merge_data_fields
+from tabkit.utils import FilesList, OptUtils, exception_handler, exec_path
+
+def chunk_iter(iterable, chunk_size):
+    """
+    >>> list( chunk_iter( [1,2,3,4,5,6,7,8], 3 ) )
+    [[1, 2, 3], [4, 5, 6], [7, 8]]
+    """
+    return (
+        [item for n,item in group]
+        for key, group
+        in groupby(enumerate(iterable), key=lambda (n,item): n//chunk_size)
+    )
+
+def coroutine(func):
+    @wraps(func)
+    def newfunc(*args, **kwargs):
+        gen = func(*args, **kwargs)
+        assert gen.send(None) == None
+        return gen
+    return newfunc
+
+@coroutine
+def LineSyncer(outf, eol):
+    chunks = []
+    try:
+        while True:
+            chunk = yield
+            nl = chunk.rfind(eol)
+            if nl == -1:
+                chunks.append(chunk)
+            elif nl + 1 == len(chunk):
+                chunks.append(chunk)
+                outf.writelines(chunks)
+                chunks = []
+            else:
+                chunks.append(chunk[:nl + 1])
+                outf.writelines(chunks)
+                chunks = [chunk[nl + 1:]]
+    finally:
+        if chunks:
+            if chunks[-1][-1] != eol:
+                chunks.append(eol)
+            outf.writelines(chunks)
+
+
+class HeaderChecker(object):
+    def __init__(self, pass_meta=None):
+        self.desc = None
+        self.pass_meta = pass_meta
+    def __call__(self, header):
+        desc = parse_header(header)
+        if self.desc == None:
+            desc.order = []
+            self.desc = desc
+            if self.pass_meta:
+                self.desc.meta.update(self.pass_meta)
+            return make_header(self.desc)
+        else:
+            merge_data_fields(self.desc.fields, desc.fields) # exception if descs are incompatible
+        return None
+
+class HeaderMerger(object):
+    def __init__(self, fobj, check_header, eol):
+        self.fobj = fobj
+        self.check_header = check_header
+        self.eol = eol
+        self.checked = False
+
+    def get_header(self, lines):
+        eol = self.eol
+        header = ''
+        got_header = False
+        newlines = []
+        for line in lines:
+            if got_header:
+                newlines.append(line)
+            else:
+                eol_pos = line.find(eol)
+                if eol_pos == -1:
+                    header += line
+                else:
+                    header += line[:eol_pos + 1]
+                    newlines.append(line[eol_pos + 1:])
+        return header, newlines
+
+    def writelines(self, lines):
+        if self.checked:
+            self.fobj.writelines(lines)
+        else:
+            header, lines = self.get_header(lines)
+            out_header = self.check_header(header)
+            if out_header is not None:
+                self.fobj.write(out_header)
+            self.fobj.writelines(lines)
+            self.checked = True
+
+def merge_fds(fds, outf, check_headers, chunk_size=1000000, eol='\n', pass_meta=None):
+    check_header = HeaderChecker(pass_meta)
+    if check_headers:
+        buffers = dict((fd, LineSyncer(HeaderMerger(outf, check_header, eol), eol)) for fd in fds)
+    else:
+        buffers = dict((fd, LineSyncer(outf, eol)) for fd in fds)
+    epoll = select.epoll(1)
+    try:
+        for fd in fds:
+            epoll.register(fd, select.EPOLLIN)
+        while buffers:
+            for fd, event in epoll.poll():
+                if event & select.EPOLLIN:
+                    buffers[fd].send(os.read(fd, chunk_size))
+                elif event & select.EPOLLHUP:
+                    buffers.pop(fd).close()
+                    epoll.unregister(fd)
+                elif event == select.EPOLLERR:
+                    raise Exception("Error reading from child fd %d" % (fd,))
+                else:
+                    raise Exception("Unknown epoll event %d on fd %d" % (event, fd))
+    finally:
+        epoll.close()
+
+def make_consumer(workers_num, check_headers, exec_str=None, pass_meta=None):
+    parent_files = []
+    mine_fds = []
+    for x in range(workers_num):
+        rfd, wfd = os.pipe()
+        parent_files.append(os.fdopen(wfd, 'w'))
+        mine_fds.append(rfd)
+
+    child_pid = os.fork()
+    if child_pid != 0:
+        # parent
+        sys.stdout.close()
+        for fd in mine_fds:
+            os.close(fd)
+        return parent_files
+    else:
+        # child
+        sys.stdin.close()
+        for fobj in parent_files:
+            fobj.close()
+
+        if exec_str:
+            os.execvp(
+                os.environ.get('SHELL', '/bin/sh'),
+                [
+                    os.environ.get('SHELL', '/bin/sh'),
+                    '-c',
+                    exec_str + " " + " ".join("/dev/fd/%s" % (fd,) for fd in mine_fds)
+                ],
+            )
+        else:
+            try:
+                merge_fds(mine_fds, sys.stdout, check_headers, pass_meta=pass_meta)
+            finally:
+                for fd in mine_fds:
+                    os.close(fd)
+            return None
+
+def write_to_files(workers_num, prefix):
+    digs = max(2, len(str(workers_num - 1)))
+    tpl = "%%s%%0%dd" % (digs,)
+    for x in range(workers_num):
+        yield open(tpl % (prefix, x), 'w')
+
+def feed_procs(procs, inf, input_has_header):
+    if input_has_header:
+        header = str(next(inf))
+        parse_header(header)
+        for proc in procs:
+            proc.stdin.write(header)
+    consumers = cycle(proc.stdin for proc in procs)
+    for line in inf:
+        next(consumers).write(line)
+
+# from tabkit._tparallel import NonBlockingFeeder
+# with --standalone use pure python implementation:
+class PyNonBlockingFeeder(object):
+    def __init__(self, fd, line, max_lines_per_call=0):
+        self.fd = fd
+        self.line = line
+        self.max_lines_per_call = max_lines_per_call
+    def is_empty(self):
+        return bool(self.line)
+    def __call__(self, inf):
+        if not self.line:
+            line = ''
+            written = 0
+        else:
+            line = self.line
+            written = os.write(self.fd, line)
+        lines_left = self.max_lines_per_call
+        while written == len(line) and (self.max_lines_per_call == 0 or lines_left > 0):
+            lines_left -= 1
+            line = inf.readline()
+            if not line:
+                self.line = None
+                return False
+            else:
+                written = 0
+                try:
+                    written = os.write(self.fd, line)
+                except OSError, err:
+                    if err.errno != errno.EAGAIN:
+                        raise
+        if written == 0:
+            self.line = line
+        else:
+            self.line = line[written:]
+        return True
+
+
+def feed_procs_epoll(procs, inf, header, batch_size=0):
+
+    epoll = select.epoll(1)
+    try:
+        feeders = {}
+        procs_dict = {}
+        for proc in procs:
+            fd = proc.stdin.fileno()
+            procs_dict[fd] = proc
+            fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
+            epoll.register(fd, select.EPOLLOUT)
+            feeders[fd] = NonBlockingFeeder(fd, header, batch_size)
+
+        while feeders:
+            for fd, event in epoll.poll():
+                if event & select.EPOLLOUT:
+                    if not feeders[fd](inf):
+                        epoll.unregister(fd)
+                        del feeders[fd]
+                        # очень важно закрыть пайп, как только туда нечего писать,
+                        # иначе легко получить deadlock при использовании опции -o, пример:
+                        # (echo '# x'; seq 1 100000) | tparallel -o 'cat' -P 2 -b 1000 cat | wc -l
+                        procs_dict[fd].stdin.close()
+                elif event & select.EPOLLHUP:
+                    epoll.unregister(fd)
+                    if not feeders[fd].is_empty():
+                        raise Exception("Process on fd %r finished unexpectedly" % (fd, ))
+                    del feeders[fd]
+                elif event == select.EPOLLERR:
+                    raise Exception("Error writing to child fd %d" % (fd,))
+                else:
+                    raise Exception("Unexpected epoll event %d on fd %d" % (event, fd))
+
+        if inf.readline():
+            raise Exception('All consumers finished before input was exhausted')
+    finally:
+        epoll.close()
+
+def yaml_splitter(lines):
+    yaml_start = '---\n'
+    rec = array.array('c')
+    for lineno, line in enumerate(lines):
+        if rec:
+            if line == yaml_start:
+                yield buffer(rec)
+                rec = array.array('c')
+        else:
+            if line != yaml_start:
+                raise Exception("Corrupter yaml file at %r:%r" % (lineno, line))
+        rec.fromstring(line)
+    yield buffer(rec)
+
+class TemplateExpansionError(Exception):
+    pass
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] <cmd>',
+        option_list = [
+            Option(
+                '-P', dest="workers_num", type="int", default=1,
+                help="number of workers to run"
+            ),
+            Option(
+                '-n', dest="no_input_header", action="store_true",
+                help="input data has no header"
+            ),
+            Option(
+                '-N', dest="no_out_header", action="store_true",
+                help="output data has no header"
+            ),
+            Option(
+                '-b', '--batch-size', type="int", default=0,
+                help=(
+                    "Max number of lines/yaml-records sent to <cmd> at one shot. "
+                    "Default is 0 (no limit)"
+                )
+            ),
+            Option(
+                '-f', dest="prefix",
+                help="output data to N files named '<PREFIX><WORKER_NUM>'"
+            ),
+            Option(
+                '-o', dest="out_cmd",
+                help="run OUT_CMD command with output fds as arguments"
+            ),
+            Option(
+                '-y', dest="yaml", action="store_true",
+                help="interpret input as YAML stream (assumes -n)"
+            ),
+            Option(
+                '-x', '--xargs', dest="xargs_num", type="int", default=None,
+                help=(
+                    "xargs mode, send input lines as args to <cmd>. "
+                    "Each <cmd> invocation gets XARGS_NUM number of args "
+                    "or less if there are not enough input lines."
+                )
+            ),
+            Option(
+                '-X', '--xargs-template', action="store_true",
+                help=(
+                    "xargs mode, interpret <cmd> as template according to "
+                    "http://docs.python.org/3/library/string#format-string-syntax "
+                    "and expand it using input line fields (XARGS_NUM is assumed to be 1). "
+                    "If used with -n option then fields interpreted as positional arguments, "
+                    "otherwise fields are keyword arguments."
+                )
+            ),
+            Option(
+                '--xargs-feeder', type="int",
+                help="Used internally to implement --xargs option"
+            ),
+            Option(
+                '--standalone', action="store_true",
+                help=(
+                    "Run in standalone executable mode."
+                    "May be slower, but useful for mapreduce."
+                )
+            ),
+        ],
+    )
+    optparser.disable_interspersed_args()
+    OptUtils.add_pytrace(optparser)
+    global opts, args
+    opts, args = optparser.parse_args()
+
+    if len(args) < 1:
+        optparser.error('Need <cmd>')
+
+    if opts.xargs_feeder:
+        main_feeder(opts, args, optparser)
+    else:
+        main_master(opts, args, optparser)
+
+def main_feeder(opts, args, optparser):
+    if not opts.no_input_header:
+        desc = parse_header(sys.stdin.next())
+        if len(desc.fields) != 1 and not opts.xargs_template:
+            raise Exception('In xargs mode input must contain exactly one field')
+    check_header = HeaderChecker()
+    for lines in chunk_iter(sys.stdin, opts.xargs_feeder):
+        if not opts.xargs_template:
+            cmd_args = args + [line.rstrip('\r\n') for line in lines]
+        else:
+            assert len(lines) == 1
+            if opts.no_input_header:
+                fields_list = lines[0].rstrip('\r\n').split('\t')
+                try:
+                    cmd_args = [arg.format(*fields_list) for arg in args]
+                except Exception, err:
+                    raise TemplateExpansionError(err.__class__.__name__ + ': ' + str(err))
+            else:
+                fields_dict = dict(zip(
+                    (field.name for field in desc.fields),
+                    lines[0].rstrip('\r\n').split('\t'),
+                ))
+                try:
+                    cmd_args = [arg.format(**fields_dict) for arg in args]
+                except Exception, err:
+                    raise TemplateExpansionError(err.__class__.__name__ + ': ' + str(err))
+        popen = subprocess.Popen(
+            cmd_args,
+            shell = False,
+            stdin = subprocess.PIPE,
+            stdout = subprocess.PIPE,
+            close_fds = True,
+        )
+        try:
+            popen.stdin.close()
+            if not opts.no_out_header:
+                header = popen.stdout.readline()
+                out_header = check_header(header)
+                if out_header is not None:
+                    sys.stdout.write(out_header)
+            shutil.copyfileobj(popen.stdout, sys.stdout)
+        finally:
+            popen.stdout.close()
+            popen.wait()
+
+def main_master(opts, args, optparser):
+    meta = {}
+    global NonBlockingFeeder
+    if not opts.standalone:
+        try:
+            from tabkit import _tparallel
+        except ImportError: # marpreduce workaround
+            if 'MRKIT_MAPREDUCE_HOST' not in os.environ:
+                raise
+            sys.path.append('.')
+            import _tparallel
+            sys.path.pop()
+        NonBlockingFeeder = _tparallel.NonBlockingFeeder
+        if 'MRKIT_LOCAL_RUN' in os.environ:
+            meta['mr_upload_files'] = [exec_path(_tparallel.__file__)]
+    else:
+        NonBlockingFeeder = PyNonBlockingFeeder
+    if opts.xargs_template:
+        opts.xargs_num = 1
+    if opts.xargs_num is not None:
+        if opts.xargs_num != 1 and opts.xargs_template:
+            optparser.error("Conflicting options -x and -X")
+        if opts.xargs_num <= 0:
+            optparser.error("XARGS_NUM must be greater than zero")
+        if opts.yaml:
+            optparser.error("Can't use yaml input with --xargs option")
+        if opts.batch_size:
+            optparser.error("--batch-size option conflicts with --xargs")
+        new_args = [sys.argv[0], '--xargs-feeder=%d' % (opts.xargs_num,)]
+        if opts.xargs_template:
+            new_args.append('-X')
+        if opts.no_out_header:
+            new_args.append('-N')
+        if opts.no_input_header:
+            new_args.append('-n')
+        if opts.pytrace:
+            new_args.append('--pytrace')
+        args = new_args + args
+        opts.batch_size = opts.xargs_num
+
+    header = None
+    if opts.yaml:
+        inp = yaml_splitter(sys.stdin)
+    else:
+        inp = sys.stdin
+        if not opts.no_input_header:
+            header = inp.readline()
+            parse_header(header)
+
+    if header and 'MRKIT_LOCAL_RUN' in os.environ and args:
+        mr_upload_files = parse_header(header).meta.get('mr_upload_files', [])
+        arg_exec_path = exec_path(args[0])
+        if not arg_exec_path:
+            raise Exception('can\'t get path for cmd %s' % args[0])
+        mr_upload_files.append(arg_exec_path)
+        meta.setdefault('mr_upload_files', []).extend(mr_upload_files)
+
+
+    if opts.prefix:
+        out_files = write_to_files(opts.workers_num, opts.prefix)
+    elif opts.out_cmd:
+        out_files = make_consumer(opts.workers_num, check_headers=None, exec_str=opts.out_cmd)
+    else:
+        out_files = make_consumer(opts.workers_num, check_headers=not opts.no_out_header, pass_meta=meta)
+
+    if out_files:
+        procs = []
+        for outf in out_files:
+            procs.append(
+                subprocess.Popen(
+                    args,
+                    shell = False,
+                    stdin = subprocess.PIPE,
+                    stdout = outf,
+                    close_fds = True,
+                )
+            )
+            outf.close()
+        try:
+            feed_procs_epoll(
+                procs,
+                inp,
+                header,
+                batch_size = opts.batch_size,
+            )
+        finally:
+            for proc in procs:
+                proc.stdin.close()
+            return_code = 0
+            for proc in procs:
+                return_code |= proc.wait()
+            if return_code:
+                sys.exit(1)
+
+if __name__ == '__main__':
+    exception_handler(main)

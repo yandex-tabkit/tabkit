@@ -1,0 +1,242 @@
+tabkit-yandex (1.11889-2) UNRELEASED; urgency=low
+
+  * Add __rest__: echo '# a b c d' | tmap_awk -o 'b=a+d;__rest__' -> '# b a c d'.
+  * Add min(*exprs)/max(*exprs) fuctions for tmap_awk.
+  * Add uniq(delim, expr), strip(expr) function.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Tue, 20 Aug 2013 22:01:22 +0400
+
+tabkit-yandex (1.11889-1) stable; urgency=low
+
+  * Add crc32 function (awk source).
+  * Add --standalone mode to tparallel.
+  * Add MRKIT_LOCAL_RUN processing to t*_awk, tparallel.
+  * is_in_file and map_from_file functions.
+  * product tgrp_awk function.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Thu, 15 Aug 2013 00:59:34 +0400
+
+tabkit-yandex (1.11837-1) stable; urgency=low
+
+  * Force awk string comparsion in grouping by 'key' or 'new_key=key'.
+  * Added key vars to -o context: tgrp_awk -G key -o 'val=sum(val)+key'.
+  * Now not valid, use tmap_awk: tgrp_awk -G 'f=int(_ctr*100)' -O '_ctr=sum(c)/sum(s)'.
+  * More informative exception in case of tgrp_awk -o 'f=int(f)'.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Tue, 30 Jul 2013 22:04:14 +0400
+
+tabkit-yandex (1.11815-1) stable; urgency=low
+
+  * remove wrong #Size calculation in tcut.
+  * fix 'end' section of tgrp_awk with -O option.
+  * add concat_uniq function.
+  * tunconcat optimization.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Mon, 22 Jul 2013 22:51:21 +0400
+
+tabkit-yandex (1.11810-1) stable; urgency=low
+
+  * add tabkit-sort as undeground sort programm
+  * tsrt without -k arg use all fields for sort instead of whole line like gnu sort
+  * modified tsrt & pv: pv -c bigfile.gz | zcat | tsrt --pv | tpv -c | ./slow_script.py | ...
+  * set default batch-size to max(8, cpu_count()).
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Thu, 18 Jul 2013 19:23:26 +0400
+
+tabkit-yandex (1.11751-1) stable; urgency=low
+
+  * tparallel optimization.
+  * -t option to t2tab that only remove types.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Wed, 10 Jul 2013 21:24:33 +0400
+
+tabkit-yandex (1.11637-1) precise; urgency=low
+
+  * infer type for if
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Fri, 31 May 2013 21:24:56 +0400
+
+tabkit-yandex (1.11599-1) stable; urgency=low
+
+  * (tjoin) fix field ordering while using compound key, fix output >2 keys
+  * (tjoin) fix field duplication in order
+  * доки
+  * очепятка
+  * пример использования --expose-groups
+  * added test for tproject
+  * added grouping functions 'first' and 'last' (useful with --expose-groups)
+  * (tgrp_awk) added option tgrp_awk --expose-groups
+  * (field_split) ignore leading and trailing separators
+  * fixed formats to support python versions <2.7
+  * вместо того, чтобы dup-ать файлы просто снимаем флаг CLOEXEC
+  * фикс номеров файлов в сообщениях о неправильной сортировке
+  * tjoin с составным ключем
+  * proper line type
+  * proper line type
+  * fix for tsrt
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Wed, 22 May 2013 21:47:48 +0400
+
+tabkit-yandex (1.11408-1) stable; urgency=low
+
+  * добавил в tsrt возможность обратной сортировки
+  * добавли в tsrt сортировку в числовом порядке
+
+ -- Alexandr Gurtyakov <agurtyakov@yandex-team.ru>  Thu, 28 Mar 2013 14:05:39 +0400
+
+tabkit-yandex (1.11303-1.1) stable; urgency=low
+
+  * Собрал для lucid
+
+ -- Alexandr Gurtyakov <agurtyakov@yandex-team.ru>  Wed, 13 Mar 2013 16:08:10 +0400
+
+tabkit-yandex (1.11033-1) precise; urgency=low
+
+  * https://jira.yandex-team.ru/browse/YACONTEXT-9113 - test
+  * https://jira.yandex-team.ru/browse/YACONTEXT-10634: правильный find у RowExprVar
+  * https://jira.yandex-team.ru/browse/YACONTEXT-9113 - fix type inference bug
+
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Thu, 17 Jan 2013 22:01:54 +0400
+
+tabkit-yandex (1.10995-1) precise; urgency=low
+
+  * bugfix: дедлок про использовании -o в tparallel
+  * added tbuff
+  * сборка пакета под hardy
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Wed, 26 Dec 2012 11:52:00 +0400
+
+tabkit-yandex (1.10886-1) precise; urgency=low
+
+  * https://jira.yandex-team.ru/browse/YACONTEXT-10578 - writeto permissions
+  * YACONTEXT-10389: более понятное сообщение об ошибке
+  * YACONTEXT-10389: импортить yaml только если используется #META: иначе это лишняя зависимость
+  * YACONTEXT-10389: same err msgs for EPOLLER
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Tue, 04 Dec 2012 22:44:21 +0400
+
+tabkit-yandex (1.10803-1) precise; urgency=low
+
+  * allow use of '-' for stdin as in generic cat
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Mon, 19 Nov 2012 18:02:24 +0400
+
+tabkit-yandex (1.10647-1) precise; urgency=low
+
+  * add parse_file_keeplines
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Fri, 12 Oct 2012 19:09:32 +0400
+
+tabkit-yandex (1.10582-1) precise; urgency=low
+
+  * tpaste --zip
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Wed, 19 Sep 2012 16:38:31 +0400
+
+tabkit-yandex (1.10563-1) stable; urgency=low
+
+  * fix meta
+
+ -- Andrei Fyodorov <pha@yandex-team.ru>  Thu, 13 Sep 2012 21:47:59 +0400
+
+tabkit-yandex (1.10341-1) stable; urgency=low
+
+  * lots of changes
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Tue, 24 Jun 2012 21:31:00 +0400
+
+tabkit-yandex (1.1.7-1) stable; urgency=low
+
+  * added tawk
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Wed, 12 Oct 2011 21:40:00 +0400
+
+tabkit-yandex (1.1.6-1) stable; urgency=low
+
+  * fix include for correct building
+  * added t2tab converter from tabkit header into tabtools header
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Fri, 07 Oct 2011 22:19:10 +0400
+
+tabkit-yandex (1.1.5-1) stable; urgency=low
+
+  * avoid code duplication
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Wed, 5 Oct 2011 17:00:00 +0400
+
+tabkit-yandex (1.1.4-1) stable; urgency=low
+
+  * tcut: bugfixed operation on multiple files
+  * tcut: added -z option
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Wed, 5 Oct 2011 16:00:00 +0400
+
+tabkit-yandex (1.1.3-1) stable; urgency=low
+
+  * bugfixed --compress-program option in tsrt
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Wed, 21 Sep 2011 16:45:00 +0400
+
+tabkit-yandex (1.1.2-1) stable; urgency=low
+
+  * added --compress-program option to tsrt
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Tue, 20 Sep 2011 18:46:00 +0400
+
+tabkit-yandex (1.1.1-1) stable; urgency=low
+
+  * added awk var FILENAME
+  * added tabkit/python.py module to convert grp exprs to python functions
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Sun, 24 Jul 2011 19:05:00 +0400
+
+tabkit-yandex (1.1.0-1) stable; urgency=low
+
+  * type inferention in t*_awk tools
+  * added -a option in tmap_awk
+  * added -A option in t*_awk
+  * added conditional operator in t*_awk
+  * added new grouping functions in tgrp_awk: median, variance, concat
+  * tmap_awk supports fields enumeration in -o
+  * tcut -r removes field
+  * tsort.py supports -N -H
+  * added new tools: tpretty, tpaste
+  * keep #ORDER: if possible in tgrp_awk
+  * informative syntax error messages
+  * Pass args to awk using --awk-args
+  * tsrt supports additional sorting types
+  * various bugfixes
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Thu, 23 Jun 2011 20:35:00 +0300
+
+tabkit-yandex (1.0.3-1) stable; urgency=low
+
+  * preserve field types in tcut
+  * suport slicing in DataDesc
+  * preserve #ORDER in tmap_awk
+  * output all fields if no -o options were specified
+  * fixed missing import in tsrt
+  * supprt -N -H in tgrp_awk and tmap_awk
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Wed, 9 Mar 2011 16:52:00 +0300
+
+tabkit-yandex (1.0.2-1) unstable; urgency=low
+
+  * added --batch-size option to tsrt
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Mon, 28 Feb 2011 19:40:00 +0300
+
+tabkit-yandex (1.0.1-1) unstable; urgency=low
+
+  * bugfixes
+  * support python2.5
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Mon, 28 Feb 2011 19:30:00 +0300
+
+tabkit-yandex (1.0.0-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Alexey Akimov <akimov@yandex-team.ru>  Fri, 18 Feb 2011 03:15:43 +0300
+

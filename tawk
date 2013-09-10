@@ -1,0 +1,56 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys
+import os, re
+from pipes import quote
+from optparse import OptionParser, Option
+
+from tabkit.header import parse_header, make_header
+from tabkit.utils import exception_handler, FilesList, OptUtils, safe_system
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] <awk_script> [input_files]',
+        option_list = [
+            Option('-a', dest="awk_executable", default="mawk"),
+        ]
+    )
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_print_cmd(optparser)
+    opts, args = optparser.parse_args()
+
+    awk_script = args.pop(0)
+    files = FilesList(args)
+    desc = files.concat_desc()
+
+    header_match = re.search(r'BEGIN{"(# [^"]+)"}', awk_script)
+    if header_match:
+        out_desc = parse_header(header_match.group(1))
+    else:
+        raise Exception('Specify out-header in your script, e.g: BEGIN{"# f1 f2 f3"}')
+
+    awk_opts = [
+        r'-v FS="\t"',
+        r'-v OFS="\t"',
+    ]
+    for fno, field in enumerate(desc.fields):
+        awk_opts.append(
+            "-v %s=%d" % (quote(field.name), fno + 1)
+        )
+
+    cmd = " ".join([
+        quote(opts.awk_executable),
+        " ".join(awk_opts),
+        quote(awk_script),
+        files.cmd_args_str(),
+    ])
+    if opts.print_cmd:
+        print >> sys.stderr, cmd
+    else:
+        os.write(sys.stdout.fileno(), make_header(out_desc))
+        safe_system(cmd)
+
+if __name__ == '__main__':
+    exception_handler(main)
+

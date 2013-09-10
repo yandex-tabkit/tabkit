@@ -1,0 +1,58 @@
+#!/usr/bin/python
+
+import sys
+import tempfile
+from optparse import OptionParser
+
+from tabkit.header import parse_header, make_header
+
+class ColWidthCalc(object):
+    def __init__(self):
+        self.col_widths = {}
+
+    def __call__(self, lines):
+        col_widths = self.col_widths
+        for i, line in enumerate(lines):
+            if i == 0 and line.startswith('#'):
+                line = make_header(parse_header(line))
+            fields = line.rstrip().split('\t')
+            for field_id, field in enumerate(fields):
+                col_widths[field_id] = max(col_widths.get(field_id, 0), len(field.decode('utf8', 'replace')))
+            yield line
+
+    def get_widths(self):
+        return [min(width, 100) for field_id, width in sorted(self.col_widths.iteritems())]
+
+def fmt_line(line, widths):
+    fields = [field.decode('utf8', 'replace') for field in line.rstrip().split('\t', len(widths) - 1)]
+    fields_widths = zip(fields, widths)
+    fmt_line = u' | '.join("%%-%ds" % (wid,) for field, wid in fields_widths)
+    return (fmt_line % tuple(fields)).encode('utf8')
+
+def main():
+    optparser = OptionParser(usage="%prog [filename]")
+    opts, args = optparser.parse_args()
+
+    col_width_calc = ColWidthCalc()
+    tmpfile = tempfile.TemporaryFile()
+    if not args:
+        tmpfile.writelines(col_width_calc(sys.stdin))
+    elif len(args) == 1:
+        tmpfile.writelines(col_width_calc(open(args[0])))
+    else:
+        optparser.error('Wrong number of arguments')
+    tmpfile.seek(0)
+
+    fields = None
+    for i, line in enumerate(tmpfile):
+        if i == 0 and line.startswith('#'):
+            fields = parse_header(line).fields
+            line = '\t'.join(field.name for field in fields)
+            print fmt_line(line, col_width_calc.get_widths())
+            print '-' * sum(w + 3 for w in col_width_calc.get_widths())
+        else:
+            print fmt_line(line, col_width_calc.get_widths()[:len(fields)])
+
+if __name__ == '__main__':
+    main()
+

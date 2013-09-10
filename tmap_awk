@@ -1,0 +1,54 @@
+#!/usr/bin/python
+
+import os
+import sys
+from optparse import OptionParser, Option
+
+from tabkit.header import make_header, pass_meta
+from tabkit.utils import FilesList, safe_system, exception_handler, OptUtils, exec_path
+from tabkit.awk import awk_filter_map
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] [files]',
+        option_list = [
+            Option('-f', dest="filter_expr", action="append", default=[]),
+            Option('-o', dest="output_expr", action="append", default=[]),
+            Option('-a', dest="output_all",  action="store_true", help="output all input fields first"),
+        ],
+    )
+    OptUtils.add_awk_exec(optparser)
+    OptUtils.add_header(optparser)
+    OptUtils.add_no_out_header(optparser)
+    OptUtils.add_pytrace(optparser)
+    OptUtils.add_print_cmd(optparser)
+    OptUtils.add_meta(optparser)
+    opts, args = optparser.parse_args()
+    files = FilesList(args, header=opts.header)
+    desc = files.concat_desc()
+    concat_meta = files.concat_meta()
+    desc.meta = pass_meta(concat_meta, opts)
+
+    if opts.output_all:
+        opts.output_expr = [field.name for field in desc.fields] + opts.output_expr
+
+    awk_cmd, output_desc = awk_filter_map(desc, opts.filter_expr, opts.output_expr)
+
+    if opts.awk_exec and 'MRKIT_LOCAL_RUN' in os.environ:
+        output_desc.meta.setdefault(
+            'mr_upload_files',
+            concat_meta.get('mr_upload_files', [])
+        ).append(exec_path(opts.awk_exec))
+
+    if opts.print_cmd:
+        print awk_cmd.cmd_line(opts.awk_exec)
+        print '---'
+        print awk_cmd.tostr(ident=4, newline='\n')
+    else:
+        if not opts.no_out_header:
+            os.write(sys.stdout.fileno(), make_header(output_desc))
+        safe_system(awk_cmd.cmd_line(opts.awk_exec) + ' ' + files.cmd_args_str())
+
+if __name__ == '__main__':
+    exception_handler(main)
+

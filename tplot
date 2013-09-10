@@ -1,0 +1,30 @@
+#!/usr/bin/python
+
+import sys
+from tempfile import NamedTemporaryFile
+from pipes import quote
+
+from tabkit.utils import FilesList, exception_handler
+from tabkit.safe_popen import safe_system
+
+def main():
+    args = sys.argv[1:]
+    files = FilesList([])
+    desc = files.concat_desc()
+    with NamedTemporaryFile(delete=True) as tmp:
+        tmp.write("\t".join(field.name for field in desc.fields) + "\n")
+        tmp.writelines(files.readlines())
+        tmp.flush()
+
+        init_vars = ['set key autotitle columnhead; STDIN="%s"' % (tmp.name,)]
+        for i, field in enumerate(desc.fields):
+            init_vars.append("%s=%d" % (field.name, i + 1))
+
+        safe_system("gnuplot -e %s %s" % (
+            quote("; ".join(init_vars)),
+            " ".join(quote(arg) for arg in args),
+        ))
+
+if __name__ == '__main__':
+    exception_handler(main)
+

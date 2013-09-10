@@ -1,0 +1,131 @@
+#!/usr/bin/python
+# coding: utf-8
+u"""\
+Рассмотрим пример:
+
+   tcat input1.txt | ./run.py | tjoin -j key - input2.txt
+
+все хорошо, но run.py - медленный (не потому что питон,
+а потому, что делает много полезной работы). Можно ускорить конвейер
+с помощью tparallel.
+
+   tcat input1.txt | tparallel -P 16 ./run.py | tjoin -j key - input2.txt
+
+но вот незадача, tparallel не сохраняет отсортированность из input1.txt.
+Зато известно, что каждый инстанс run.py получает на вход отсортированные данные
+и выводит тоже отсортированные. Поэтому можно натравить на них tsrt -m:
+
+   tcat input1.txt | tparallel -P 16 -o 'tsrt -mk key' ./run.py | tjoin -j key - input2.txt
+
+Теперь tjoin получает на вход отсортированные данные, но из-за блокировок ввода-вывода
+производительность упала почти до скорости нераспараллеленого run.py.
+Тут и приходит на помощь tbuff:
+
+   tcat input1.txt | tparallel -P 16 -o 'tsrt -mk key' tbuff ./run.py | tjoin -j key - input2.txt
+
+Теперь run.py могут работать не дожидаясь пока tsrt начнет из них читать.
+"""
+
+import sys, os
+import fcntl, errno
+from select import select
+from subprocess import Popen, PIPE
+from optparse import OptionParser, Option, IndentedHelpFormatter
+from collections import deque
+
+class Buffers(object):
+    def __init__(self):
+        self.buffers = deque()
+        self.size = 0
+    def __nonzero__(self):
+        return self.size != 0
+    def __len__(self):
+        return self.size
+    def append(self, data):
+        self.buffers.append(data)
+        self.size += len(data)
+    def appendleft(self, data):
+        self.buffers.appendleft(data)
+        self.size += len(data)
+    def popleft(self):
+        self.size -= len(self.buffers[0])
+        return self.buffers.popleft()
+
+def make_nonblocking(fd):
+    return fcntl.fcntl(
+        fd,
+        fcntl.F_SETFL,
+        fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK
+    )
+
+class MyFormatter(IndentedHelpFormatter):
+    def format_description(self, description):
+        return description
+
+def main():
+    optparser = OptionParser(
+        usage = '%prog [options] <cmd> [cmd-args]',
+        description = __doc__,
+        formatter = MyFormatter(),
+        option_list = [
+            Option('-s', '--max-buffer-size', type="int", default=10*1024*1024),
+            Option('-b', '--block-size', type="int", default=4*1024),
+        ]
+    )
+    optparser.disable_interspersed_args()
+    opts, args = optparser.parse_args()
+    if not args:
+        optparser.error("<cmd> not specified.")
+
+    max_buffer_size = opts.max_buffer_size
+    block_size = opts.block_size
+    buffers = Buffers()
+
+    prog = Popen(args, stdout=PIPE, shell=False)
+    try:
+        sys.stdin.close()
+        outf = sys.stdout.fileno()
+        inf = prog.stdout.fileno()
+        inf_has_data = True
+        make_nonblocking(inf)
+        make_nonblocking(outf)
+
+        while buffers or inf_has_data:
+            rfset = []
+            wfset = []
+            if buffers:
+                wfset.append(outf)
+            if inf_has_data and len(buffers) < max_buffer_size:
+                rfset.append(inf)
+
+            rfready, wfready, xfready = select(rfset, wfset, [])
+
+            for rf in rfready:
+                buf = os.read(rf, min(block_size, max_buffer_size - len(buffers)))
+                if len(buf) == 0:
+                    inf_has_data = False
+                else:
+                    buffers.append(buf)
+
+            for wf in wfready:
+                while buffers:
+                    buf = buffers.popleft()
+                    try:
+                        written = os.write(wf, buf)
+                        if written != len(buf):
+                            buffers.appendleft(buf[written:])
+                            break
+                    except OSError, err:
+                        if err.errno == errno.EAGAIN:
+                            buffers.appendleft(buf)
+                            break
+                        else:
+                            raise
+
+    finally:
+        prog.stdout.close()
+        prog.wait()
+
+if __name__ == '__main__':
+    main()
+

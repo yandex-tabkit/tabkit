@@ -1,0 +1,62 @@
+#!/usr/bin/python
+# coding: utf-8
+
+import sys
+from optparse import OptionParser, Option
+
+from tabkit.header import read_fd_header, parse_header, make_header
+
+def unconcat(fobj, field, delimiter):
+    delimiter = delimiter or None
+
+    header = parse_header(read_fd_header(fobj.fileno()))
+    sys.stdout.write(make_header(header))
+
+    field_index_val = header.field_names[field]
+    for line in fobj:
+        field_index = field_index_val
+        start_pos = -1
+
+        while field_index:
+            start_pos = line.find('\t', start_pos+1)
+            if start_pos == -1:
+                raise Exception('Wrong number of fields in line "%s"' % line)
+            field_index -= 1
+        start_pos += 1 # с этой позиции начинается middle
+
+        end_pos = line.find('\t', start_pos)
+        if end_pos == -1:
+            end_pos = len(line) - 1 # а этой он заканчивается. всегда есть, по крайней мере, '\n'
+
+        #print start_pos, end_pos, list(enumerate(line))
+
+        left = buffer(line, 0, start_pos)
+        middle = buffer(line, start_pos, end_pos-start_pos)
+        right = buffer(line, end_pos)
+
+        for bit in str(middle).split(delimiter):
+            sys.stdout.write(left)
+            sys.stdout.write(bit)
+            sys.stdout.write(right)
+
+def main():
+    optparser = OptionParser(
+        usage = "%prog -f <FIELDNAME> [-d <DELIMITER>]",
+        option_list = [
+            Option('-f', '--field'),
+            Option('-d', '--delimiter', default=","),
+            Option('--run-tests', action="store_true"),
+        ]
+    )
+    opts, args = optparser.parse_args()
+
+    if opts.run_tests:
+        import doctest
+        doctest.testmod()
+    else:
+        if not opts.field:
+            optparser.error("-f option is required")
+        unconcat(sys.stdin, opts.field, opts.delimiter)
+
+if __name__ == '__main__':
+    main()
