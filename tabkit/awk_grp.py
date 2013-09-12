@@ -60,18 +60,23 @@ def grp_max(maker, args):
         raise Exception("'max' function takes 1 argument")
     return maker(
         func = "max",
-        init = '%(var)s = -10^1000000;',
-        update = '__tmp__=%(rowexpr0)s; if(__tmp__>%(var)s){%(var)s=__tmp__};',
+        init = '%(var)s_init = 0',
+        update = '__tmp__=%(rowexpr0)s;'
+        'if (%(var)s_init==0) {%(var)s_init=1; %(var)s=__tmp__;}'
+        'if(__tmp__>%(var)s){%(var)s=__tmp__};',
         args = args,
     )
 
 def grp_min(maker, args):
     if len(args) != 1:
         raise Exception("'min' function takes 1 argument")
+
     return maker(
         func = "min",
-        init = '%(var)s = 10^1000000;',
-        update = '__tmp__=%(rowexpr0)s; if(__tmp__<%(var)s){%(var)s=__tmp__};',
+        init = '%(var)s_init = 0',
+        update = '__tmp__=%(rowexpr0)s;'
+        'if (%(var)s_init==0) {%(var)s_init=1; %(var)s=__tmp__;}'
+        'if(__tmp__<%(var)s){%(var)s=__tmp__};',
         args = args,
     )
 

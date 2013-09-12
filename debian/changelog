@@ -3,8 +3,9 @@ tabkit-yandex (1.11889-2) UNRELEASED; urgency=low
   * Add __rest__: echo '# a b c d' | tmap_awk -o 'b=a+d;__rest__' -> '# b a c d'.
   * Add min(*exprs)/max(*exprs) fuctions for tmap_awk.
   * Add uniq(delim, expr), strip(expr) function.
+  * Fix: grp min/max without apriory min/max value.
 
- -- Evgeniy Romanov <romanoved@yandex-team.ru>  Tue, 20 Aug 2013 22:01:22 +0400
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Thu, 12 Sep 2013 20:02:50 +0400
 
 tabkit-yandex (1.11889-1) stable; urgency=low
 
