@@ -268,7 +268,7 @@ diff -ub - <(
 EOF
 
 ## ТЕСТ tparallel -y #############
-diff --label "LINE ${LINENO}: tparallel -y" -ub - <(echo -e '---\na = 1\n---\nb = 2' | tparallel -y cat | sort) <<-TEST_END
+diff --label "LINE ${LINENO}: tparallel -y" -ub - <(echo -e '---\na = 1\n---\nb = 2' | tparallel -N -y cat | sort) <<-TEST_END
 ---
 ---
 a = 1
