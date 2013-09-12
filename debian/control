@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Alexey Akimov <akimov@yandex-team.ru>
 Build-Depends: debhelper (>= 7.0)
 X-Python-Version: >= 2.5
-Vcs-Svn: svn+ssh://svn.yandex.ru/yacontext/junk/mrkit
+Vcs-Svn: svn+ssh://svn.yandex.ru/yacontext/packages/mrkit
 Standards-Version: 3.9.1
 
 Package: tabkit-yandex
