@@ -275,6 +275,15 @@ def yaml_splitter(lines):
         rec.fromstring(line)
     yield buffer(rec)
 
+class YamlSplitter(object):
+    def __init__(self, lines):
+        self._lines = yaml_splitter(lines)
+    def readline(self):
+        try:
+            return next(self._lines)
+        except StopIteration:
+            return None
+
 class TemplateExpansionError(Exception):
     pass
 
@@ -404,6 +413,8 @@ def main_feeder(opts, args, optparser):
 
 def main_master(opts, args, optparser):
     meta = {}
+    if opts.yaml:
+        opts.standalone = True
     global NonBlockingFeeder
     if not opts.standalone:
         try:
@@ -444,7 +455,7 @@ def main_master(opts, args, optparser):
 
     header = None
     if opts.yaml:
-        inp = yaml_splitter(sys.stdin)
+        inp = YamlSplitter(sys.stdin)
     else:
         inp = sys.stdin
         if not opts.no_input_header:
@@ -465,7 +476,7 @@ def main_master(opts, args, optparser):
     elif opts.out_cmd:
         out_files = make_consumer(opts.workers_num, check_headers=None, exec_str=opts.out_cmd)
     else:
-        out_files = make_consumer(opts.workers_num, check_headers=not opts.no_out_header, pass_meta=meta)
+        out_files = make_consumer(opts.workers_num, check_headers=header and not opts.no_out_header, pass_meta=meta)
 
     if out_files:
         procs = []

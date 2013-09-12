@@ -267,3 +267,10 @@ diff -ub - <(
 2   444 -   -   555 444444  -   -   555555
 EOF
 
+## ТЕСТ tparallel -y #############
+diff --label "LINE ${LINENO}: tparallel -y" -ub - <(echo -e '---\na = 1\n---\nb = 2' | tparallel -y cat | sort) <<-TEST_END
+---
+---
+a = 1
+b = 2
+TEST_END
