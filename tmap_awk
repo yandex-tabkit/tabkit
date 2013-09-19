@@ -36,8 +36,8 @@ def main():
 
     if opts.awk_exec and 'MRKIT_LOCAL_RUN' in os.environ:
         output_desc.meta.setdefault(
-            'mr_upload_files',
-            concat_meta.get('mr_upload_files', [])
+            'mrkit_upload_files',
+            concat_meta.get('mrkit_upload_files', [])
         ).append(exec_path(opts.awk_exec))
 
     if opts.print_cmd:

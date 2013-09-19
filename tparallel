@@ -427,7 +427,7 @@ def main_master(opts, args, optparser):
             sys.path.pop()
         NonBlockingFeeder = _tparallel.NonBlockingFeeder
         if 'MRKIT_LOCAL_RUN' in os.environ:
-            meta['mr_upload_files'] = [exec_path(_tparallel.__file__)]
+            meta['mrkit_upload_files'] = [exec_path(_tparallel.__file__)]
     else:
         NonBlockingFeeder = PyNonBlockingFeeder
     if opts.xargs_template:
@@ -463,12 +463,12 @@ def main_master(opts, args, optparser):
             parse_header(header)
 
     if header and 'MRKIT_LOCAL_RUN' in os.environ and args:
-        mr_upload_files = parse_header(header).meta.get('mr_upload_files', [])
+        mrkit_upload_files = parse_header(header).meta.get('mrkit_upload_files', [])
         arg_exec_path = exec_path(args[0])
         if not arg_exec_path:
             raise Exception('can\'t get path for cmd %s' % args[0])
-        mr_upload_files.append(arg_exec_path)
-        meta.setdefault('mr_upload_files', []).extend(mr_upload_files)
+        mrkit_upload_files.append(arg_exec_path)
+        meta.setdefault('mrkit_upload_files', []).extend(mrkit_upload_files)
 
 
     if opts.prefix:
