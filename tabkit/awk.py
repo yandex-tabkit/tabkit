@@ -309,8 +309,9 @@ def func_mapper(ctx):
 
         @staticmethod
         def map_from_file(fname_expr, key_expr, default_expr):
-            if isinstance(fname_expr, RowExprConst) and fname_expr.type == "str" and not os.path.exists(fname_expr.const):
-                raise Exception('map_from_file: %s not found' % fname_expr.const)
+            # turn check off. usefull for mapreduce
+            #if isinstance(fname_expr, RowExprConst) and fname_expr.type == "str" and not os.path.exists(fname_expr.const):
+            #    raise Exception('map_from_file: %s not found' % fname_expr.const)
 
             EXT_FUNC_REQ.add('hash_id_map')
             EXT_FUNC_REQ.add('map_from_file')
@@ -327,8 +328,9 @@ def func_mapper(ctx):
 
         @staticmethod
         def is_in_file(fname_expr, key_expr):
-            if isinstance(fname_expr, RowExprConst) and fname_expr.type == "str" and not os.path.exists(fname_expr.const):
-                raise Exception('map_from_file: %s not found' % fname_expr.const)
+            # turn check off. usefull for mapreduce
+            #if isinstance(fname_expr, RowExprConst) and fname_expr.type == "str" and not os.path.exists(fname_expr.const):
+            #    raise Exception('map_from_file: %s not found' % fname_expr.const)
 
             EXT_FUNC_REQ.add('hash_id_set')
             EXT_FUNC_REQ.add('is_in_file')

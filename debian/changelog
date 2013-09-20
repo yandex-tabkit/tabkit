@@ -1,3 +1,9 @@
+tabkit-yandex (1.12015-1) UNRELEASED; urgency=low
+
+  * Workaround for is_in_file/map_from_file: disable file existence check.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Fri, 20 Sep 2013 22:02:00 +0400
+
 tabkit-yandex (1.12015-1) stable; urgency=low
 
   * Add __rest__: echo '# a b c d' | tmap_awk -o 'b=a+d;__rest__' -> '# b a c d'.

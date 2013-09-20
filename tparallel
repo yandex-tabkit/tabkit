@@ -66,8 +66,10 @@ class HeaderChecker(object):
         if self.desc == None:
             desc.order = []
             self.desc = desc
-            if self.pass_meta:
-                self.desc.meta.update(self.pass_meta)
+            if self.pass_meta and 'MRKIT_LOCAL_RUN' in os.environ:
+                self.desc.meta.setdefault('mrkit_upload_files',[]).extend(
+                    self.pass_meta.get('mrkit_upload_files',[])
+                )
             return make_header(self.desc)
         else:
             merge_data_fields(self.desc.fields, desc.fields) # exception if descs are incompatible
