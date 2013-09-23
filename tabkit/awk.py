@@ -173,7 +173,7 @@ def func_mapper(ctx):
     def _associative_bin_op_tree(func):
         def associative_op_tree_decorator(*exprs):
             if not exprs:
-                raise Exception('%s on empty args' % (name,))
+                raise Exception('%s on empty args' % (func.__name__,))
             if len(exprs)==1:
                 return _get_var('_'+func.__name__, exprs[0])
             else:

@@ -28,8 +28,8 @@ class SafePopen(Popen):
         self.close()
 
     def close(self):
-        self.stdout.close()
-        status = self.wait()
+        self.stdout.close() # pylint: disable=E1101
+        status = self.wait() # pylint: disable=E1101
         if status != 0:
             raise SafePopenError("safe_popen failed on %r, status = %r" % (
                 self.__cmdline, status
@@ -52,7 +52,7 @@ def safe_popen(command, bufsize=None):
     """
     popen = SafePopen(command, bufsize)
     try:
-        for line in popen.stdout:
+        for line in popen.stdout: # pylint: disable=E1101
             yield line
     except:
         popen.close()
@@ -66,7 +66,7 @@ def safe_system(command):
         shell = False,
         preexec_fn = lambda: signal(SIGPIPE, SIG_DFL),
     )
-    status = popen.wait()
+    status = popen.wait() # pylint: disable=E1101
     if status != 0:
         raise SafePopenError("safe_system failed on %r, status = %r" % (command, status))
 

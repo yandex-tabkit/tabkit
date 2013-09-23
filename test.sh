@@ -8,6 +8,13 @@ testdir=$(mktemp -d)
 trap "echo 'Test failed.'" ERR
 trap "rm -rf $testdir" EXIT
 
+# запускаем pylint на всех питонячьих файлах
+find . \
+    -type f \
+    '(' -name '*.py' -or -exec awk '{if(/python/){exit(0)}else{exit(1)}}' '{}' ';' ')' \
+    -print \
+| xargs -r pylint --errors-only
+
 python -m doctest tabkit/awk.py
 python -m doctest tabkit/awk_grp.py
 python -m doctest tabkit/header.py

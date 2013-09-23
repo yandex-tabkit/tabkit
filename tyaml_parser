@@ -29,7 +29,7 @@ def gzip_opener(fnames):
     for fname in fnames:
         popen = SafePopen("gzip -dc %s" % (quote(fname),))
         try:
-            yield popen.stdout
+            yield popen.stdout # pylint: disable=E1101
         finally:
             popen.close()
 
