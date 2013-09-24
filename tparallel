@@ -402,16 +402,16 @@ def main_feeder(opts, args, optparser):
             close_fds = True,
         )
         try:
-            popen.stdin.close() # pylint: disable=E1101
+            popen.stdin.close() # pylint: disable-msg=E1101
             if not opts.no_out_header:
-                header = popen.stdout.readline() # pylint: disable=E1101
+                header = popen.stdout.readline() # pylint: disable-msg=E1101
                 out_header = check_header(header)
                 if out_header is not None:
                     sys.stdout.write(out_header)
-            shutil.copyfileobj(popen.stdout, sys.stdout) # pylint: disable=E1101
+            shutil.copyfileobj(popen.stdout, sys.stdout) # pylint: disable-msg=E1101
         finally:
-            popen.stdout.close() # pylint: disable=E1101
-            popen.wait() # pylint: disable=E1101
+            popen.stdout.close() # pylint: disable-msg=E1101
+            popen.wait() # pylint: disable-msg=E1101
 
 def main_master(opts, args, optparser):
     meta = {}
@@ -420,7 +420,7 @@ def main_master(opts, args, optparser):
     global NonBlockingFeeder
     if not opts.standalone:
         try:
-            from tabkit import _tparallel # pylint: disable=E0611
+            from tabkit import _tparallel # pylint: disable-msg=E0611
         except ImportError: # marpreduce workaround
             if 'MRKIT_MAPREDUCE_HOST' not in os.environ:
                 raise

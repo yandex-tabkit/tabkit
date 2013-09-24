@@ -85,7 +85,7 @@ def main():
     try:
         sys.stdin.close()
         outf = sys.stdout.fileno()
-        inf = prog.stdout.fileno() # pylint: disable=E1101
+        inf = prog.stdout.fileno() # pylint: disable-msg=E1101
         inf_has_data = True
         make_nonblocking(inf)
         make_nonblocking(outf)
@@ -123,8 +123,8 @@ def main():
                             raise
 
     finally:
-        prog.stdout.close() # pylint: disable=E1101
-        prog.wait() # pylint: disable=E1101
+        prog.stdout.close() # pylint: disable-msg=E1101
+        prog.wait() # pylint: disable-msg=E1101
 
 if __name__ == '__main__':
     main()

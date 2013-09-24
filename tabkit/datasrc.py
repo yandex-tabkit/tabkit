@@ -16,7 +16,7 @@ TYPES = set([
 class DataField(namedtuple('DataField', 'name type')):
     def __repr__(self):
         return "%s(%r, %r)" % (
-            self.__class__.__name__, self.name, self.type # pylint: disable=E1101
+            self.__class__.__name__, self.name, self.type # pylint: disable-msg=E1101
         )
 
 class SortType(object):
