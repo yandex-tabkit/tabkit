@@ -10,8 +10,16 @@ trap "rm -rf $testdir" EXIT
 
 # запускаем pylint на всех питонячьих файлах
 find . \
+    -maxdepth 1 \
     -type f \
-    '(' -name '*.py' -or -exec awk '{if(/python/){exit(0)}else{exit(1)}}' '{}' ';' ')' \
+    -exec awk '{if(/^#!.*python/){exit(0)}else{exit(1)}}' '{}' ';' \
+    -print \
+| xargs -r pylint --errors-only
+
+find tabkit \
+    -maxdepth 1 \
+    -type f \
+    -name '*.py' \
     -print \
 | xargs -r pylint --errors-only
 
