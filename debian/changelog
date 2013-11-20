@@ -1,8 +1,8 @@
-tabkit-yandex (1.12015-1) UNRELEASED; urgency=low
+tabkit-yandex (1.12229) stable; urgency=low
 
   * Workaround for is_in_file/map_from_file: disable file existence check.
 
- -- Evgeniy Romanov <romanoved@yandex-team.ru>  Fri, 20 Sep 2013 22:02:00 +0400
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Wed, 20 Nov 2013 20:49:16 +0400
 
 tabkit-yandex (1.12015-1) stable; urgency=low
 
