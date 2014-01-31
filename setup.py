@@ -2,11 +2,14 @@
 
 import os, shutil
 
-from distutils.core import setup, Extension
+#from distutils.core import setup, Extension
 from distutils.command.clean import clean
 from distutils.command.build import build
 
 from _compile_tools import main
+
+from setuptools import setup
+from setuptools import Extension
 
 class my_clean(clean):
     def run(self):
