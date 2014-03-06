@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # coding: utf-8
-"""
+u"""
 Примеры:
 
 Подсчет CTR и кликов по pageid:
@@ -50,6 +50,7 @@
 
 import sys
 import os
+import textwrap
 from optparse import OptionParser, Option, OptionValueError
 from tabkit.utils import exception_handler, FilesList, safe_system, OptUtils, exec_path
 from tabkit.header import parse_header, make_header, pass_meta
@@ -67,9 +68,40 @@ def fill_grp_exprs(option, opt_str, value, parser):
         raise OptionValueError('Unexpected option %r' % (opt_str,))
     parser.values.exprs.append((grp_type, value))
 
+
+def get_grp_descs():
+    from tabkit.awk_grp import FUNC_MAP
+    custom_descs = {
+        'concat': u'(field_name[, delim]):               конкатенация строчек',
+        'concat_uniq': u'(field_name[, delim]):          как concat, но возвращает уникальные отсортированные',
+        'chain_concat_uniq': u'(field_name[, delim]):    как concat_uniq, но разбивает field_name по delim',
+        'concat_sample': u'(field_name, limit[, delim]): как concat_uniq, но возвращает не более первых limit уникальных значений',
+        'ifmax': u'(fld1, fld2):                         значение fld2, соответсвующее максимальному значению fld1',
+        'ifmin': u'(fld1, fld2):                         значение fld2, соответсвующее минимальному значению fld1',
+        'cnt' : u'()'
+    }
+    return [
+        fname + custom_descs.get(fname, '(fld)')
+        for fname in FUNC_MAP
+    ]
+
+
 def main():
     optparser = OptionParser(
-        usage = '%prog [options] [files]',
+        usage = textwrap.dedent(u'''
+        %prog [options] [files]
+
+        Внимание!
+        При конфликте имен функций используется функция группировочного контекста.
+        Таким образом, не работает tgrp_awk -G F1 -o 'min(max(F2),max(F3))'.
+
+        Функции группировочного контекста:
+            {grp_funcs}
+        {doc}
+        '''.format(
+            grp_funcs=('\n' + ' '*12).join(get_grp_descs()),
+            doc=__doc__,
+        )),
         option_list = [
             Option('-g', dest="grouping_expr", default=None),
             Option('-G', dest="grouping_expr_short", default=None,

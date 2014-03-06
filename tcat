@@ -46,7 +46,7 @@ def cat_regular_uncompressed(opts, args, tot_size):
     desc.meta = pass_meta(desc.meta, opts)
     if not opts.no_out_header:
         os.write(sys.stdout.fileno(), make_header(desc))
-    os.system(out_cmd)
+    safe_system(out_cmd)
 
 def main():
     optparser = OptionParser(

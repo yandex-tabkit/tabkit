@@ -139,10 +139,10 @@ def grp_chain_concat_uniq(maker, args):
     elif len(args) == 2:
         field_name, delim = args
     else:
-        raise Exception("'concat_uniq' function takes 2 arguments (field and delimiter)")
+        raise Exception("'grp_chain_concat_uniq' function takes 2 arguments (field and delimiter)")
 
     if not isinstance(delim, RowExprConst) or delim.type != "str":
-        raise Exception("'delim' arg to 'concat_uniq' function should be a const of type 'str'")
+        raise Exception("'delim' arg to 'grp_chain_concat_uniq' function should be a const of type 'str'")
 
     return maker(
         func = "concat_uniq",
@@ -155,6 +155,40 @@ def grp_chain_concat_uniq(maker, args):
         'delete %(var)s_heap;',
         args = (field_name,),
     )
+
+
+def grp_concat_sample(maker, args):
+    if len(args) == 2:
+        field_name, limit = args
+        delim = RowExprConst(",")
+    elif len(args) == 3:
+        field_name, limit, delim = args
+    else:
+        raise Exception("'grp_concat_sample' function takes 3 arguments (field, limit, delimiter=',')")
+
+    if not isinstance(delim, RowExprConst) or delim.type != "str":
+        raise Exception("'delim' arg to 'grp_concat_sample' function should be a const of type 'str'")
+
+    if not isinstance(limit, RowExprConst) or limit.type != "int":
+        raise Exception("'limit' arg to 'grp_concat_sample' function should be a const of type 'int'")
+
+    return maker(
+        func = "concat_sample",
+        init = '%(var)s = ""; %(var)s_cnt=0;',
+        update = '''
+        if (!(%(rowexpr0)s in %(var)s_heap) && %(var)s_cnt<{0})
+        {{
+            %(var)s_heap[%(rowexpr0)s]="";
+            %(var)s_cnt += 1;
+        }}'''.format(limit.const),
+        end = '%(var)s_nitems = asorti(%(var)s_heap);'
+        'for (%(var)s_i=1; %(var)s_i<=%(var)s_nitems; %(var)s_i++)'
+            '%(var)s = (%(var)s=="")?(%(var)s_heap[%(var)s_i]):(%(var)s "' + delim.const + '" %(var)s_heap[%(var)s_i]);'
+        'delete %(var)s_heap;',
+        args = (field_name,),
+    )
+
+
 
 def grp_cnt(maker, args):
     if len(args) != 0:
@@ -215,6 +249,7 @@ FUNC_MAP = {
     'concat' : grp_concat,
     'concat_uniq' : grp_concat_uniq,
     'chain_concat_uniq' : grp_chain_concat_uniq,
+    'concat_sample' : grp_concat_sample,
     'cnt' : grp_cnt,
     'avg' : grp_avg,
     'median' : grp_median,
@@ -233,10 +268,7 @@ def parse_grpexpr(grp_ctx, tree, row_ctx, maker):
         return parse_expr(grp_ctx, tree, partial(parse_grpexpr, maker=maker, row_ctx=row_ctx))
 
 def parse_assign_grpexpr(grp_ctx, tree, row_ctx, maker):
-    try:
-        return parse_assign_expr(grp_ctx, tree, partial(parse_grpexpr, maker=maker, row_ctx=row_ctx))
-    except Exception, e:
-        raise Exception('Specify group operation context: ' + e.args[0]) if e.args else e
+    return parse_assign_expr(grp_ctx, tree, partial(parse_grpexpr, maker=maker, row_ctx=row_ctx))
 
 def find_grp_funcs(ctx):
     func_dict = {}

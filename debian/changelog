@@ -1,3 +1,10 @@
+tabkit-yandex (1.12450) stable; urgency=low
+
+  * Help for *_awk. 
+  * Add concat_sample function for tgrp_awk.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Thu, 06 Mar 2014 15:57:01 +0400
+
 tabkit-yandex (1.12229) stable; urgency=low
 
   * Workaround for is_in_file/map_from_file: disable file existence check.

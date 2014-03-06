@@ -1,16 +1,86 @@
 #!/usr/bin/python
+# coding: utf-8
 
 import os
 import sys
 from optparse import OptionParser, Option
 
+from textwrap import dedent
+
 from tabkit.header import make_header, pass_meta
 from tabkit.utils import FilesList, safe_system, exception_handler, OptUtils, exec_path
 from tabkit.awk import awk_filter_map
 
+def get_func_descs():
+    import inspect
+    from tabkit.awk import func_mapper
+    fmapper = func_mapper(object)
+    fdescs = []
+    additional_desc = {
+        'is_in_file' : u' # в fname_expr tsv без заголовка с одним столбцом: ключ',
+        'map_from_file' : u' # в fname_expr tsv без заголовка с двумя столбцами: ключ и значение',
+    }
+    for attr_name in dir(fmapper):
+        attr = getattr(fmapper, attr_name)
+        if not inspect.isfunction(attr):
+            continue
+        if attr_name.startswith('_'):
+            continue
+        attrspec = inspect.getargspec(attr)
+        fdescs.append(
+            attr_name + str(
+                tuple(
+                    attrspec.args + (
+                        ['*'+attrspec.varargs] if attrspec.varargs else [])
+                    )
+                ).replace("'",'').replace(',)', ')') + additional_desc.get(attr_name, '')
+            )
+    return fdescs
+
+def get_op_descs():
+    import inspect
+    from tabkit.awk import OP_MAP
+    op_descs = []
+    for op_l in OP_MAP.itervalues():
+        op, rexpr = inspect.getsource(op_l).split(': lambda args:')
+        op = op.strip()
+        if not op.startswith('_ast.'):
+            continue
+        op = op[len('_ast.'):]
+        rexpr = rexpr.strip()
+        op_descs.append('{0:<15}{1}'.format(op, rexpr))
+    return op_descs
+
 def main():
+
     optparser = OptionParser(
-        usage = '%prog [options] [files]',
+        usage = dedent(u'''
+            %prog [options] [files]
+
+            Синтаксис -o:
+                Каждая инструкция имеет вид varname[=expr]
+                Допустимо несколько инструкций через ";".
+                Изначально в контексте есть только переменные из входного tsv-потока.
+                Каждая инструкция добавляет varname в контекст.
+
+            Особые имена переменных:
+                Если имя переменной начинается с подчёркивания, то в контекст она будет добавлена, но в итоге не выводится.
+                __all__ = заменяется на список всех изначальных переменных.
+                __rest__ = varname for varname in __all__ if varname not in current_context
+
+            Синтансис expr:
+                Вызов функции: varname=func(a,b,c). Порядок: map-контекста, затем awk build-in.
+                Конкатенация строк: varname=a,":",b; формально, tuple -> delim.join(tuple)
+
+            Правила трансляции операторов (_ast.*):
+                {operators}
+
+            Список функций map-контектса:
+                {functions}
+        '''.format(
+            functions=('\n' + ' '*16).join(get_func_descs()),
+            operators=('\n' + ' '*16).join(get_op_descs()),
+        )),
         option_list = [
             Option('-f', dest="filter_expr", action="append", default=[]),
             Option('-o', dest="output_expr", action="append", default=[]),
