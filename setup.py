@@ -22,7 +22,7 @@ class my_build(build):
 
 setup(
     name = 'tabkit',
-    version = '1.0',
+    version = '1.1',
     description = 'python wrappers around coreutils (cat, join, sort, cut), awk and pv to support tab-separated files with headers.',
     author = 'Alexey Akimov',
     author_email = 'akimov@yandex-team.ru',
