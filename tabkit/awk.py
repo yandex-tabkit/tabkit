@@ -20,6 +20,7 @@ OP_MAP = {
     _ast.BitOr    : lambda args: RowExprFunc('or', args),
     _ast.RShift   : lambda args: RowExprFunc('rshift', args),
     _ast.LShift   : lambda args: RowExprFunc('lshift', args),
+    _ast.Invert   : lambda args: RowExprFunc('compl', args),
 
     _ast.And      : lambda args: RowExprOp('&&', args),
     _ast.Or       : lambda args: RowExprOp('||', args),
