@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import sys, os, re
+from textwrap import dedent
 from optparse import OptionParser, Option
 from yacontext.contrib.odict import OrderedDict
 from itertools import groupby
@@ -17,53 +18,141 @@ def keygetter(keys):
 
 def main():
     optparser = OptionParser(
+        usage=dedent(u'''
+            [tsrt -k $GROUP_FLDS |] %prog [options] -G $GROUP_FLDS -P projection_flds
+            Описание работы:
+                для всех групп, определяемых значением подряд идущих столбцов из $GROUP_FLDS
+                внутри каждой группы
+                    по всем встреченным значения вектора из projection_flds
+                    накапливаются значения переменных из -o
+                после обхода всех групп формируется заголовок
+                далее агрегированные значения выводятся соответственно каждой из групп
+
+            При формировании имени можно использовать опцию --format.
+            Доступные аргументы:
+                - {0} имя поля из -o (str)
+                - {1} .. {len(projection_flds)} - поля транспонирования: {1.name} - имя, {1.value} - значение.
+
+            Особенность: транспонирование производится внутри одного значения ключа, так что при обычном использовании
+            файл должен быть предварительно отсортирован по ключу в -G. Если сортировка нестандартная (н-р численная),
+            то для корректной работы в заголовке для полей в -G должны быть заданы соответсвующие типы.
+
+            Пример:
+            $ tpretty table.txt
+            Date     | PageID | SelectType | ShowsLog | Money
+            ----------------------------------------------------
+            20140101 | 1      | 14         | 1        | 1
+            20140101 | 1      | 87         | 1        | 2
+            20140101 | 1      | 87         | 2        | 3
+            20140101 | 2      | 87         | 1        | 4
+            20140101 | 1      | 14         | 2        | 5
+            20140102 | 1037   | 14         | 2        | 6
+            20140102 | 1      | 87         | 3        | 7
+
+            $ cat table.txt | %prog \\
+                -G 'Date;PageID' \\
+                -P 'SelectType;ShowsLog' \\
+                -d - \\
+            | sed '1{s/SelectType/ST/g;s/ShowsLog/Shows/g}' \\
+            | tpretty
+            Date     | PageID | ST_14_Shows_1_Money | ST_87_Shows_1_Money | ST_87_Shows_2_Money | ST_14_Shows_2_Money | ST_87_Shows_3_Money
+            ----------------------------------------------------------------------------------------------------------------------------------
+            20140101 | 1      | 1                   | 2                   | 3                   | -                   | -
+            20140101 | 2      | -                   | 4                   | -                   | -                   | -
+            20140101 | 1      | -                   | -                   | -                   | 5                   | -
+            20140102 | 1037   | -                   | -                   | -                   | 6                   | -
+            20140102 | 1      | -                   | -                   | -                   | -                   | 7
+
+            $ cat table.txt | tsrt -k Date,PageID | ./tproject \\
+                -G Date,PageID \\
+                -P SelectType,ShowsLog \\
+                -d - \\
+                --format 'ST_{1.value}_{2.name}_{2.value:.2}^{0}' \\
+            | tpretty
+            Date     | PageID | ST_14_Sh_1^Money | ST_14_Sh_2^Money | ST_87_Sh_1^Money | ST_87_Sh_2^Money | ST_87_Sh_3^Money
+            -------------------------------------------------------------------------------------------------------------------
+            20140101 | 1      | 1                | 5                | 2                | 3                | -
+            20140101 | 2      | -                | -                | 4                | -                | -
+            20140102 | 1      | -                | -                | -                | -                | 7
+            20140102 | 1037   | -                | 6                | -                | -                | -
+        '''),
         option_list = [
-            Option('-k', '--key'),
-            Option('-d', '--default'),
+            Option('-G', dest="group_expr", default='', help=u'Поля, внутри значений которых проводится транспонирование. Файл должен быть сгруппирован по этим полям.'),
+            Option('-P', dest="projection_expr", default='', help=u'Поля, по значениям которых (внутри -G) проводится транспонирование. Итоговое значение (кортеж) должен быть уникальным внутри -G.'),
+            Option('-o', dest="output_expr", default='', help=u'Список полей, значения которых будет выведены в разрезе транспонирования. Все входные (кроме -G и -P), если не задан.'),
+            Option('--format', dest="fmt_expr", help=u'Строчка для format, определяющая метод формирования заголовка (см описание выше).'),
+            Option('-d', '--default', help=u'Общее значение по умолчанию.'),
         ]
     )
+
+    OptUtils.add_header(optparser)
     OptUtils.add_pytrace(optparser)
     opts, args = optparser.parse_args()
+
+    group_flds = field_split(opts.group_expr)
+    projection_flds = field_split(opts.projection_expr)
+
     recs = parse_file(sys.stdin)
+    fields = set(field.name for field in recs.data_desc.fields)
+
+    output_flds = field_split(opts.output_expr) or fields
+
+    fmt_expr = opts.fmt_expr or '_'.join('{%d}'%(i+1) for i in xrange(len(projection_flds)))+ '_{0}'
 
     # проверяем корректность опций и аргументов
-    if not opts.key:
-        optparser.error('Please specify KEY')
-    keys = field_split(opts.key)
-
-    fields = set(field.name for field in recs.data_desc.fields)
-    if not fields.issuperset(keys):
-        optparser.error("Key field not found: %r" % (list(set(keys) - fields),))
-    if not fields.issuperset(args):
-        optparser.error("Projection fields not found: %r" % (list(set(args) - fields),))
-    if set(keys).intersection(args):
-        optparser.error("Key fields intersects with projection fields: %r" % (list(set(keys).intersection(args)),))
+    if not projection_flds:
+        optparser.error("Specify projection fiels with -p")
+    if not fields.issuperset(group_flds):
+        optparser.error("Key field not found: %r" % (list(set(group_flds) - fields),))
+    if not fields.issuperset(projection_flds):
+        optparser.error("Projection fields not found: %r" % (list(set(projection_flds) - fields),))
+    if not fields.issuperset(output_flds):
+        optparser.error("Output fields not found: %r" % (list(set(output_flds) - fields),))
+    if set(group_flds).intersection(projection_flds):
+        optparser.error("Key fields intersects with projection fields: %r" % (list(set(group_flds).intersection(projection_flds)),))
 
     # находим поля, значения которых будем выводить
     data_fields = []
-    for field in recs.data_desc.fields:
-        if field.name not in (keys + args):
-            data_fields.append(field.name)
+    for field in output_flds:
+        if field not in (group_flds + projection_flds):
+            data_fields.append(field)
 
     # накапливаем значения
     res = []
     projections = OrderedDict()
     recno = 0
-    for key, recs in groupby(recs, keygetter(keys)):
+    for key, recs in groupby(recs, keygetter(group_flds)):
         key_res = {}
         for rec in recs:
-            vec = tuple(getattr(rec, arg) for arg in args)
+            vec = tuple(getattr(rec, projection_fld) for projection_fld in projection_flds)
             projections[vec] = 1
             if vec in key_res:
                 recno0, vals = key_res[vec]
-                raise Exception('Conflicting data lines: %r and %r' % (recno0 + 2, recno + 2))
+                raise Exception('key %r: conflicting data lines with %r on lines %r and %r' % (key, zip(projection_flds, vec), recno0 + 2, recno + 2))
             else:
                 key_res[vec] = (recno, tuple(getattr(rec, field) for field in data_fields))
             recno += 1
         res.append((key, key_res))
 
     # выводим заголовок
-    print "# " + ("\t".join(keys + [field + "_" + ("_".join(str(v) for v in proj)) for field in data_fields for proj in projections]))
+    def get_fld_name(field, prj_vals):
+        class NVal(object):
+            def __init__(self, name, value):
+                self.name=name
+                self.value=value
+            def __repr__(self):
+                return '{0.name}_{0.value}'.format(self)
+
+        prj_nvals = [
+            NVal(name, value)
+            for name, value in
+            zip(projection_flds, prj_vals)
+        ]
+        return fmt_expr.format(field, *prj_nvals)
+
+    print "# " + '\t'.join(
+        group_flds + [get_fld_name(field, proj)  for field in data_fields for proj in projections]
+    )
 
     # выводим данные
     default = None
@@ -74,10 +163,9 @@ def main():
             line = tuple(values.get(proj, default)[1][fno] for fno, field in enumerate(data_fields) for proj in projections)
         else:
             line = tuple(values[proj][1][fno] for fno, field in enumerate(data_fields) for proj in projections)
-        print "\t".join(str(val) for val in key + line)                
+        print '\t'.join(str(val) for val in key + line)
 
 if __name__ == '__main__':
     import gc
     gc.disable()
     exception_handler(main)
-
