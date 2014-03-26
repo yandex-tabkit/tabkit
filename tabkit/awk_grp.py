@@ -260,7 +260,8 @@ FUNC_MAP = {
 
 def parse_grpexpr(grp_ctx, tree, row_ctx, maker):
     if isinstance(tree, _ast.Call) and tree.func.id in FUNC_MAP:
-        assert not tree.keywords
+        if tree.keywords:
+            raise Exception('Keyword arguments are not supported in %r' % (tree.func.id,))
         return FUNC_MAP[tree.func.id](
             maker, list(parse_expr(row_ctx, arg) for arg in tree.args)
         )
