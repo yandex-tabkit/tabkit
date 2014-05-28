@@ -36,7 +36,8 @@ def parse_file(lines, require_order=None):
     if len(header) == 1:
         data_desc = parse_header(header[0])
         if require_order:
-            data_desc.order.is_ordered_by(parse_header_order(require_order))
+            if not data_desc.order.is_ordered_by(parse_header_order(require_order)):
+                raise Exception('require_order check of {0} failure on {1}.'.format(require_order, data_desc.order))
         field_spec = []
         for field in data_desc.fields:
             field_spec.append((field.name, TYPE_MAP[field.type]))

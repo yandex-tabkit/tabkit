@@ -277,7 +277,7 @@ diff -ub - <(
 1\tn\tS\t333\t333333
 2\tpr\tU\t444\t444444
 2\tpr\tS\t555\t555555
-" | ./tproject -d- -kdate premium stable
+" | ./tproject -d- -G date -P premium,stable --format '{0}_{1.value}_{2.value}'
 ) <<EOF
 # date  c_pr_U  c_n_U   c_n_S   c_pr_S  s_pr_U  s_n_U   s_n_S   s_pr_S
 1   111 222 333 -   111111  222222  333333  -
