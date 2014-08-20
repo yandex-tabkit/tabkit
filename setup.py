@@ -8,8 +8,10 @@ from distutils.command.build import build
 
 from _compile_tools import main
 
-from distutils.core import setup
-from distutils.core import Extension
+from setuptools import setup
+from setuptools import Extension
+#from distutils.core import setup
+#from distutils.core import Extension
 
 class my_clean(clean):
     def run(self):
