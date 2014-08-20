@@ -49,7 +49,7 @@ def main():
             fields = parse_header(line).fields
             line = '\t'.join(field.name for field in fields)
             print fmt_line(line, col_width_calc.get_widths())
-            print '-' * sum(w + 3 for w in col_width_calc.get_widths())
+            print "|".join("-"*(w + 2) for w in col_width_calc.get_widths())[1:]
         else:
             print fmt_line(line, col_width_calc.get_widths()[:len(fields)])
 
