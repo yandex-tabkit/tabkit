@@ -193,10 +193,8 @@ GRP_FUNCS = {
     'cnt' : Counter
 }
 
-try:
-    from collections import namedtuple
-except ImportError:
-    from yacontext.common.namedtuple import namedtuple
+
+from collections import namedtuple
 
 GrpReplace = namedtuple('GrpReplace', 'grp_func args kwargs')
 
@@ -225,7 +223,7 @@ class RewriteGrpFuncs(ast.NodeTransformer):
 class TabkitPythonError(Exception):
     pass
 
-def _test():
+def _test(): # pylint: disable=E0102
     import doctest
     doctest.testmod()
 

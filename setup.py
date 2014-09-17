@@ -16,6 +16,7 @@ from setuptools import Extension
 class my_clean(clean):
     def run(self):
         clean.run(self)
+        shutil.rmtree('tabkit.egg-info', ignore_errors=True)
 
 class my_build(build):
     def run(self):

@@ -1,7 +1,7 @@
 from itertools import islice, tee, izip
 from tabkit.header import parse_header, parse_header_order
 from tabkit.datasrc import DataDesc
-from yacontext.common.fileparser import FileParser, RecParser
+from tabkit._fileparser import FileParser, RecParser
 
 TYPE_MAP = {
     'str'  : str,
@@ -71,7 +71,7 @@ def parse_file_keeplines(lines, require_order=None):
     for line, rec in izip(lines_iter, parse_file(lines_iter_parse)):
         yield line, rec
 
-def _test():
+def _test(): # pylint: disable=E0102
     import doctest
     doctest.testmod()
 

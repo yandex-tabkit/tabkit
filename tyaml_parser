@@ -4,8 +4,17 @@ import sys
 from pipes import quote
 from optparse import OptionParser, Option
 
-from yacontext.common.yamlcompat import load_documents
-from yacontext.common.safe_popen import SafePopen
+import yaml
+
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
+
+def load_documents(data, *args, **kwargs):
+    return yaml.load_all(data, Loader=Loader, *args, **kwargs)
+
+from tabkit.safe_popen import SafePopen
 
 from tabkit.utils import exception_handler
 

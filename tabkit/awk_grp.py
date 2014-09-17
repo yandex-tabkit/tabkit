@@ -626,7 +626,7 @@ __test__ = dict(
 )
 
 
-def _test():
+def _test(): # pylint: disable=E0102
     import doctest
     doctest.testmod()
 

@@ -65,6 +65,20 @@ def compile_tools(dstdir, scripts, modules=None):
         dst.close()
         os.chmod(target, 0755)
 
+common_modules = [
+    'tabkit.safe_popen',
+    'tabkit.datasrc',
+    'tabkit.header',
+    'tabkit.utils',
+    'tabkit.miniast',
+    'tabkit.awk',
+    'tabkit.awk_grp',
+    'tabkit.awk_expr',
+    'tabkit.awk_types',
+    'tabkit._fileparser',
+    'tabkit.pyparser',
+]
+
 def main(dstdir):
     compile_tools(
         dstdir,
@@ -76,16 +90,11 @@ def main(dstdir):
     )
     compile_tools(
         dstdir,
+        modules = common_modules + ['tabkit._odict'],
         scripts = [
             ('tproject', 'tproject'),
         ],
-        modules = [
-            'tabkit.utils',
-            'tabkit.datasrc',
-            'tabkit.header',
-            'tabkit.pyparser',
-        ],
-    )
+    ),
     compile_tools(
         dstdir,
         scripts = [
@@ -108,17 +117,7 @@ def main(dstdir):
     )
     compile_tools(
         dstdir = dstdir,
-        modules = [
-            'tabkit.safe_popen',
-            'tabkit.datasrc',
-            'tabkit.header',
-            'tabkit.utils',
-            'tabkit.miniast',
-            'tabkit.awk',
-            'tabkit.awk_grp',
-            'tabkit.awk_expr',
-            'tabkit.awk_types',
-        ],
+        modules = common_modules,
         scripts = [
             ('tcat',      'tcat'),
             ('tpv',       'tpv'),

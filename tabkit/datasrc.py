@@ -1,9 +1,6 @@
 import os
 from itertools import izip
-try:
-    from collections import namedtuple
-except ImportError:
-    from yacontext.common.namedtuple import namedtuple
+from collections import namedtuple
 
 TYPES = set([
     'float',
@@ -360,7 +357,7 @@ def convertible(from_type, to_type):
         return True
     return False
 
-def _test():
+def _test(): # pylint: disable=E0102
     import doctest
     doctest.testmod()
 

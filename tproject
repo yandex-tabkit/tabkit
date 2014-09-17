@@ -4,9 +4,9 @@
 import sys, os, re
 from textwrap import dedent
 from optparse import OptionParser, Option
-from yacontext.contrib.odict import OrderedDict
 from itertools import groupby
 
+from tabkit._odict import OrderedDict
 from tabkit.utils import exception_handler, OptUtils
 from tabkit.pyparser import parse_file
 from tabkit.header import field_split
