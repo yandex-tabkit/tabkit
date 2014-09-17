@@ -165,7 +165,7 @@ def read_file_header(fname):
         fobj.close()
     return header
 
-def _test(): # pylint: disable=E0102
+def _test(): # pylint: disable-msg=E0102
     import doctest
     doctest.testmod()
 

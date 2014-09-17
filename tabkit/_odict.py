@@ -116,7 +116,7 @@ class OrderedDict(dict):
         self.strict = strict
         dict.__init__(self)
         if isinstance(init_val, OrderedDict):
-            self._sequence = init_val.keys() # pylint: disable=E1103
+            self._sequence = init_val.keys() # pylint: disable-msg=E1103
             dict.update(self, init_val)
         elif isinstance(init_val, dict):
             # we lose compatibility with other ordered dict types this way

@@ -107,7 +107,7 @@ class RewriteCntFuncs(ast.NodeTransformer):
         else:
             return node
 
-def _test(): # pylint: disable=E0102
+def _test(): # pylint: disable-msg=E0102
     import doctest
     doctest.testmod()
 

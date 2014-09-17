@@ -1,9 +1,9 @@
-tabkit-yandex (1.12996) stable; urgency=medium
+tabkit-yandex (1.12997) stable; urgency=medium
 
   * Remove dependency from trunk.
   * Fix debian dependencies.
 
- -- Evgeniy Romanov <romanoved@yandex-team.ru>  Wed, 17 Sep 2014 18:41:22 +0400
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Wed, 17 Sep 2014 20:03:53 +0400
 
 tabkit-yandex (1.12683) stable; urgency=low
 

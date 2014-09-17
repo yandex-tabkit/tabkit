@@ -720,7 +720,7 @@ def awk_filter_map_from_context(ctx, filter_expr=None, order=None, already_assig
     else:
         return awk_cmd, None
 
-def _test(): # pylint: disable=E0102
+def _test(): # pylint: disable-msg=E0102
     import doctest
     doctest.testmod()
 

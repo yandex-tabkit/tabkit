@@ -71,7 +71,7 @@ def parse_file_keeplines(lines, require_order=None):
     for line, rec in izip(lines_iter, parse_file(lines_iter_parse)):
         yield line, rec
 
-def _test(): # pylint: disable=E0102
+def _test(): # pylint: disable-msg=E0102
     import doctest
     doctest.testmod()
 

@@ -357,7 +357,7 @@ def convertible(from_type, to_type):
         return True
     return False
 
-def _test(): # pylint: disable=E0102
+def _test(): # pylint: disable-msg=E0102
     import doctest
     doctest.testmod()
 
