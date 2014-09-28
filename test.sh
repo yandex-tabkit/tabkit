@@ -9,20 +9,20 @@ trap "echo 'Test failed.'" ERR
 trap "rm -rf $testdir" EXIT
 
 # запускаем pylint на всех питонячьих файлах
-find . \
+(echo 'run pylint on tabkit executables'; find . \
     -maxdepth 1 \
     -type f \
     -exec awk '{if(/^#!.*python/){exit(0)}else{exit(1)}}' '{}' ';' \
     -print \
-| xargs -r pylint --errors-only 2>&1 \
+| xargs -r pylint --errors-only 2>&1 ) \
 | fgrep -v 'Exception RuntimeError:' >&2
 
-find tabkit \
+(echo 'run pylint on tabkit library'; find tabkit \
     -maxdepth 1 \
     -type f \
     -name '*.py' \
     -print \
-| xargs -r pylint --errors-only 2>&1 \
+| xargs -r pylint --errors-only 2>&1 ) \
 | fgrep -v 'Exception RuntimeError:' >&2
 
 python -m doctest tabkit/awk.py
