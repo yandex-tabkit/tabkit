@@ -160,6 +160,8 @@ def main():
     if opts.stream_check:
         if opts.add_size:
             raise Exception('Conflict options: --pv/--add-size and --stream-check')
+        if not all(f.is_stdin() for f in files):
+            raise Exception('--stream-check implemented only for stdin input, use cat file | tsrt ')
         run_tsrt_hook(sort_cmd)
     elif opts.add_size:
         run_tsrt_hook(sort_cmd, add_size=True)
