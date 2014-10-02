@@ -1,3 +1,9 @@
+tabkit-yandex (1.13030) UNRELEASED; urgency=low
+
+  * Replace tabkit-sort features due to wrapper around of native sort.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Thu, 02 Oct 2014 22:17:26 +0400
+
 tabkit-yandex (1.13017) stable; urgency=low
 
   * Add catch_sigpipe option to safe_system.

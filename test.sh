@@ -160,6 +160,20 @@ diff -ub - <(echo "# a"|tsrt -k a:desc:num --batch-size=8 --print-cmd) <<-TEST_E
 LC_ALL=C sort -t$'\t' -k1,1nr --batch-size=8
 TEST_END
 
+# опция --stream-check
+diff -ub - <(echo -e "# x\n1\n2\n03" | (tsrt -k x:num --stream-check && echo TEST_PASSED)) <<-TEST_END
+# x #ORDER: x:num
+1
+2
+03
+TEST_PASSED
+TEST_END
+
+diff -ub - <(echo -e "# x\n1\n2\n03" | (./tsrt -k x --stream-check 2>&1 1>/dev/null || echo 'sort: TEST_PASSED') | grep 'sort:') <<-TEST_END
+sort: -:3: disorder: 03
+sort: TEST_PASSED
+TEST_END
+
 ## ТЕСТ tcut #############
 
 diff -ub - <(tcut -f b,d --print-cmd <(echo "# a b c d") <(echo "# b d") <(echo "# b d")) <<-TEST_END

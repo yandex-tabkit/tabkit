@@ -12,6 +12,8 @@ from tabkit.datasrc import unix_sort_flags
 from tabkit.header import make_header, parse_header_order, field_split, pass_meta
 from tabkit.utils import safe_system, exception_handler, FilesList, OptUtils
 
+from tabkit.safe_popen import SafePopen, PIPE
+
 def make_sort_keys(desc):
     sort_keys = []
     for field_order in desc.order:
@@ -20,6 +22,20 @@ def make_sort_keys(desc):
         sort_key += unix_sort_flags(field_order)
         sort_keys.append(sort_key)
     return sort_keys
+
+
+def run_tsrt_hook(sort_cmd, add_size=False):
+    total_size = 0
+    with SafePopen(sort_cmd, stdin=PIPE, stdout=None) as sort_sp:
+        for data in iter(lambda: sys.stdin.read(8192), ''):
+            total_size += len(data)
+            sort_sp.stdin.write(data)
+            if not add_size:
+                sys.stdout.write(data)
+        if add_size:
+            sys.stdout.write(str(total_size)+'\n')
+            sys.stdout.flush()
+
 
 def main():
     optparser = OptionParser(
@@ -41,7 +57,7 @@ def main():
             Option('--batch-size',        dest="nmerge", type="int", default=max(8, multiprocessing.cpu_count())),
             Option('--compress-program',  dest="compress_program"),
             Option('--pv', '--add-size',  dest="add_size", action='store_true',
-                help='add #SIZE: (for tpv), but header flushed after file sorted if not all data with #SIZE'
+                help='(deprecated) add #SIZE: (for tpv), but header flushed after file sorted if not all data with #SIZE'
             ),
             Option('--sc', '--stream-check',    dest="stream_check",    action="store_true",
                 help="like -C, but print lines to stdout"
@@ -65,8 +81,6 @@ def main():
         raise Exception('Conflicting options -c and -C')
 
     sort_cmd = 'sort'
-    if opts.add_size or opts.stream_check:
-        sort_cmd = 'tabkit-sort'
 
     global_key_modifier = ''
     if opts.numeric:
@@ -128,20 +142,28 @@ def main():
     if opts.tmp_dir:            sort_cmd += ' -T ' + quote(opts.tmp_dir)
     if opts.unique:             sort_cmd += ' -u'
     if opts.compress_program:   sort_cmd += ' --compress-program=' + quote(opts.compress_program)
-    if opts.stream_check:       sort_cmd += ' --stream-check'
-    if opts.add_size and output_desc.size==None: sort_cmd += ' --add-size'
+    if opts.stream_check:       sort_cmd += ' -c'
     sort_cmd += ' ' + files.cmd_args_str()
 
     if opts.print_cmd:
         print sort_cmd
-    else:
-        if not (opts.no_out_header or opts.check or opts.check_quiet):
-            output_header = make_header(output_desc)
-            if opts.add_size and output_desc.size==None:
-                output_header = output_header.rstrip('\n') + ' #SIZE: '
-            os.write(sys.stdout.fileno(), output_header)
-            sys.stdout.flush()
+        return
 
+    # печатаем заголовок
+    if not (opts.no_out_header or opts.check or opts.check_quiet):
+        output_header = make_header(output_desc)
+        if opts.add_size and output_desc.size == None:
+            output_header = output_header.rstrip('\n') + ' #SIZE: '
+        os.write(sys.stdout.fileno(), output_header)
+        sys.stdout.flush()
+
+    if opts.stream_check:
+        if opts.add_size:
+            raise Exception('Conflict options: --pv/--add-size and --stream-check')
+        run_tsrt_hook(sort_cmd)
+    elif opts.add_size:
+        run_tsrt_hook(sort_cmd, add_size=True)
+    else:
         safe_system(sort_cmd)
 
 if __name__ == '__main__':

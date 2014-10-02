@@ -15,12 +15,12 @@ class SafePopenError(Exception):
         )
 
 class SafePopen(Popen):
-    def __init__(self, cmdline, bufsize=None, stdin=None):
+    def __init__(self, cmdline, bufsize=None, stdin=None, stdout=PIPE):
         popen_args = dict(
             args = safe_popen_args(cmdline),
             shell = False,
             stdin = stdin,
-            stdout = PIPE,
+            stdout = stdout,
             preexec_fn = lambda: signal(SIGPIPE, SIG_DFL),
         )
         if bufsize != None:
@@ -35,7 +35,10 @@ class SafePopen(Popen):
         self.close()
 
     def close(self):
-        self.stdout.close() # pylint: disable-msg=E1101
+        if self.stdin:
+            self.stdin.close() # pylint: disable-msg=E1101
+        if self.stdout:
+            self.stdout.close() # pylint: disable-msg=E1101
         status = self.wait() # pylint: disable-msg=E1101
         if status != 0:
             raise SafePopenError(self.__cmdline, status)
