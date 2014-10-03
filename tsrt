@@ -150,22 +150,24 @@ def main():
         return
 
     # печатаем заголовок
+    add_size_reqired = False
     if not (opts.no_out_header or opts.check or opts.check_quiet):
         output_header = make_header(output_desc)
         if opts.add_size and output_desc.size == None:
+            if opts.merge:
+                raise Exception('Conflict options: --merge and --add-size')
             output_header = output_header.rstrip('\n') + ' #SIZE: '
+            add_size_reqired = True
         os.write(sys.stdout.fileno(), output_header)
         sys.stdout.flush()
 
     if opts.stream_check:
-        if opts.add_size:
+        if add_size_reqired:
             raise Exception('Conflict options: --pv/--add-size and --stream-check')
         if not all(f.is_stdin() for f in files):
             raise Exception('--stream-check implemented only for stdin input, use cat file | tsrt ')
         run_tsrt_hook(sort_cmd)
-    elif opts.add_size:
-        if opts.merge:
-            raise Exception('Conflict options: --merge and --stream-check')
+    elif add_size_reqired:
         run_tsrt_hook(sort_cmd, add_size=True)
     else:
         safe_system(sort_cmd)
