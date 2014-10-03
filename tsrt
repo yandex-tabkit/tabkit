@@ -164,6 +164,8 @@ def main():
             raise Exception('--stream-check implemented only for stdin input, use cat file | tsrt ')
         run_tsrt_hook(sort_cmd)
     elif opts.add_size:
+        if opts.merge:
+            raise Exception('Conflict options: --merge and --stream-check')
         run_tsrt_hook(sort_cmd, add_size=True)
     else:
         safe_system(sort_cmd)
