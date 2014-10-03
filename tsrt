@@ -6,6 +6,7 @@ import os
 from pipes import quote
 import multiprocessing
 from optparse import OptionParser, Option
+import warnings
 
 from tabkit.datasrc import merge_data_fields, merge_data_order, DataDesc, DataOrder
 from tabkit.datasrc import unix_sort_flags
@@ -56,9 +57,10 @@ def main():
             Option('-u', '--unique',      dest="unique", action="store_true"),
             Option('--batch-size',        dest="nmerge", type="int", default=max(8, multiprocessing.cpu_count())),
             Option('--compress-program',  dest="compress_program"),
-            Option('--pv', '--add-size',  dest="add_size", action='store_true',
+            Option('--add-size', action='store_true',
                 help='(deprecated) add #SIZE: (for tpv), but header flushed after file sorted if not all data with #SIZE'
             ),
+            Option('--pv', action='store_true', help='(deprecated) like --add-size, but can be replaced in future'),
             Option('--sc', '--stream-check',    dest="stream_check",    action="store_true",
                 help="like -C, but print lines to stdout"
             ),
@@ -79,6 +81,9 @@ def main():
         raise Exception('Conflicting options -R and -k')
     if opts.check and opts.check_quiet:
         raise Exception('Conflicting options -c and -C')
+    if opts.pv:
+        warnings.warn('--pv can be replaced in future', DeprecationWarning)
+        opts.add_size = True
 
     sort_cmd = 'sort'
 
