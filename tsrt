@@ -168,6 +168,8 @@ def main():
             raise Exception('--stream-check implemented only for stdin input, use cat file | tsrt ')
         run_tsrt_hook(sort_cmd)
     elif add_size_reqired:
+        if not all(f.is_stdin() for f in files):
+            raise Exception('--add-size implemented only for stdin input, use cat file | tsrt ')
         run_tsrt_hook(sort_cmd, add_size=True)
     else:
         safe_system(sort_cmd)
