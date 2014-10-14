@@ -59,7 +59,10 @@ class PlainFile(InputFile):
         self.header = header or read_file_header(fname)
         self.has_header = not header
     def get_fileobj(self):
-        return open(self.fname)
+        fileobj = open(self.fname)
+        if self.has_header:
+            fileobj.readline()
+        return fileobj
     def cmd_arg(self):
         if self.has_header:
             return "<(tail -qn +2 %s || kill $$)" % (quote(self.fname),)
@@ -81,7 +84,10 @@ class GzipFile(InputFile):
             finally:
                 fobj.close()
     def get_fileobj(self):
-        return gzip.open(self.fname)
+        fileobj = gzip.open(self.fname)
+        if self.has_header:
+            fileobj.readline()
+        return fileobj
     def cmd_arg(self):
         if self.has_header:
             return "<(set -o pipefail; gzip -cd %s|tail -qn +2 || kill $$)" % (quote(self.fname),)
@@ -285,7 +291,7 @@ def add_awk_exec(parser):
         '-A', '--awk-exec', dest="awk_exec",
         help="use AWK_EXEC as awk executable",
     )
-    
+
 def add_meta(parser):
     parser.add_option(
         '--meta', dest="meta", action="store",
@@ -294,11 +300,11 @@ def add_meta(parser):
     parser.add_option(
         '-M', '--pass-meta', dest="pass_meta", action="store_true",
         help="pass meta into result"
-    )    
+    )
     parser.add_option(
         '--pass-meta-keys', dest="pass_meta_keys", action="store",
         help="specify meta keys to pass into result"
-    )    
+    )
 
 class OptUtils(object):
     add_header = staticmethod(add_header)
