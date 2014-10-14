@@ -31,6 +31,7 @@ python -m doctest tabkit/header.py
 python -m doctest tabkit/datasrc.py
 python -m doctest tabkit/pyparser.py
 python -m doctest tabkit/safe_popen.py
+python -m unittest -q tabkit.test_tregroup
 
 ./_compile_tools.py "$testdir"
 cd "$testdir"
@@ -305,3 +306,22 @@ diff --label "LINE ${LINENO}: tparallel -y" -ub - <(echo -e '---\na = 1\n---\nb 
 a = 1
 b = 2
 TEST_END
+
+## ТЕСТ tregroup #############
+diff -ub - <(
+    echo -en "\
+# A B C
+f\tfoo\t100
+f\tbar\t3
+f\tfoo\t5
+b\tbar\t1
+b\tbar\t-5
+" | ./tregroup -K 'A' -k 'B' -s 'C:num' --lru
+) <<EOF
+# A  B   C
+f    bar 3
+f    foo 5
+f    foo 100
+b    bar -5
+b    bar 1
+EOF

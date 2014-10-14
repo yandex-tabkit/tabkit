@@ -1,0 +1,7 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+from tabkit.utils import exception_handler
+from tabkit.regroup import main
+
+if __name__ == '__main__':
+    exception_handler(main)
