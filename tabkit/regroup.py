@@ -449,7 +449,7 @@ possible_handlers = {
     (False, False, False): GroupHandler,
     (False, False, True): LRUGroupHandler,
     (False, True, False): SortGroupHandler,
-    (False, True, False): SortLRUGroupHandler,
+    (False, True, True): SortLRUGroupHandler,
     (True, False, False): FixedGroupHandler,
     (True, False, True): SizedLRUGroupHandler,
     (True, True, False): SortFixedGroupHandler,
