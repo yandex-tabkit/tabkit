@@ -411,7 +411,7 @@ def awk_grp(data_desc, key_str, grp_expr_tuples, output_only_assigned=True, expo
 
     for name, val in find_grp_funcs(grp_ctx):
         init_grps.append(val.init_str())
-        update_grps.append(val.update_str())
+        update_grps.extend(val.update_str(recursive=True))
         end_grps.append(val.end_str())
 
     for name, val in find_grp_funcs(acc_ctx):

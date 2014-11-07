@@ -420,6 +420,8 @@ class AwkBlock(object):
         return bool(self.lines)
     def append(self, line):
         self.lines.append(line)
+    def extend(self, lines):
+        self.lines.extend(lines)
     def __add__(self, block):
         return add_blocks(self, block)
     def __radd__(self, block):
@@ -726,4 +728,3 @@ def _test(): # pylint: disable-msg=E0102
 
 if __name__ == "__main__":
     _test()
-

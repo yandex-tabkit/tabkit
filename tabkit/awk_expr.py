@@ -229,20 +229,38 @@ class _GrpExprFunc(RowExprVar):
         return self.name
     def find(self, node_type, node_props):
         return match_node(self, node_type, node_props)
-    def _expand_tpl(self, tpl):
+    def _expand_tpl(self, tpl, recursive=False):
         args = dict(var=self.name)
         for num, arg in enumerate(self.args):
             args['rowexpr%s' % (num,)] = arg.tostr()
-        return tpl % args
+        upd_lines = []
+        if recursive:
+            for arg in self.args:
+                self._pop_nested(arg, upd_lines)
+            upd_lines.append(tpl % args)
+            return upd_lines
+        else:
+            return tpl % args
     def init_str(self):
         return self._expand_tpl(self.init)
-    def update_str(self):
-        return self._expand_tpl(self.update)
+    def update_str(self, recursive=False):
+        return self._expand_tpl(self.update, recursive)
     def end_str(self):
         if hasattr(self, 'end'):
             return self._expand_tpl(self.end)
         else:
             return ''
+    def _pop_nested(self, arg, out_lines):
+        if isinstance(arg, RowExprVar):
+            nested_func = arg.get_var_expr()
+            line = arg.name + '=' + nested_func.tostr()
+            if line not in out_lines:
+                out_lines.insert(0, line)
+            for n_arg in nested_func.args:
+                self._pop_nested(n_arg, out_lines)
+        elif isinstance(arg, RowExprIf):
+            for var in arg.test.find(RowExprVar, {}):
+                self._pop_nested(var, out_lines)
 
 def match_node(node, node_type, node_props):
     if not isinstance(node, node_type):
