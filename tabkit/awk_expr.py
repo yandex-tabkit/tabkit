@@ -71,6 +71,12 @@ class RowExprVar(object):
             var_expr = var_expr.value
         for node in var_expr.find(node_type, node_props):
             yield node
+    def pop_nested(self, out_lines):
+        nested_func = self.get_var_expr()
+        line = self.name + '=' + nested_func.tostr()
+        if line not in out_lines:
+            out_lines.insert(0, line)
+        hasattr(nested_func, 'pop_nested') and nested_func.pop_nested(out_lines)
 
 class RowExprSideEffectVar(object):
     def __init__(self, name, var):
@@ -96,6 +102,9 @@ class RowExprFunc(object):
         for arg in self.args:
             for node in arg.find(node_type, node_props):
                 yield node
+    def pop_nested(self, out_lines):
+        for n_arg in self.args:
+            hasattr(n_arg, 'pop_nested') and n_arg.pop_nested(out_lines)
 
 class RowExprSubscript(object):
     def __init__(self, var, idx):
@@ -123,6 +132,9 @@ class RowExprOp(object):
         for arg in self.args:
             for node in arg.find(node_type, node_props):
                 yield node
+    def pop_nested(self, out_lines):
+        for n_arg in self.args:
+            hasattr(n_arg, 'pop_nested') and n_arg.pop_nested(out_lines)
 
 class RowExprIf(object):
     def __init__(self, test, body, orelse):
@@ -141,6 +153,9 @@ class RowExprIf(object):
         for arg in [self.test, self.body, self.orelse]:
             for node in arg.find(node_type, node_props):
                 yield node
+    def pop_nested(self, out_lines):
+        hasattr(self.test, 'pop_nested') and self.test.pop_nested(out_lines)
+        hasattr(self.orelse, 'pop_nested') and self.orelse.pop_nested(out_lines)
 
 class Namer(object):
     """
@@ -236,7 +251,8 @@ class _GrpExprFunc(RowExprVar):
         upd_lines = []
         if recursive:
             for arg in self.args:
-                self._pop_nested(arg, upd_lines)
+                hasattr(arg, 'pop_nested') and arg.pop_nested(upd_lines)
+                # self._pop_nested(arg, upd_lines)
             upd_lines.append(tpl % args)
             return upd_lines
         else:
@@ -250,17 +266,6 @@ class _GrpExprFunc(RowExprVar):
             return self._expand_tpl(self.end)
         else:
             return ''
-    def _pop_nested(self, arg, out_lines):
-        if isinstance(arg, RowExprVar):
-            nested_func = arg.get_var_expr()
-            line = arg.name + '=' + nested_func.tostr()
-            if line not in out_lines:
-                out_lines.insert(0, line)
-            for n_arg in nested_func.args:
-                self._pop_nested(n_arg, out_lines)
-        elif isinstance(arg, RowExprIf):
-            for var in arg.test.find(RowExprVar, {}):
-                self._pop_nested(var, out_lines)
 
 def match_node(node, node_type, node_props):
     if not isinstance(node, node_type):
