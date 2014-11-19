@@ -89,7 +89,9 @@ class RowExprSideEffectVar(object):
             yield node
         for node in self.var.find(node_type, node_props):
             yield node
-
+    def pop_nested(self, out_lines):
+        hasattr(self.var, 'pop_nested') and self.var.pop_nested(out_lines)
+        
 class RowExprFunc(object):
     def __init__(self, func, args):
         self.func = func
@@ -119,6 +121,9 @@ class RowExprSubscript(object):
             yield node
         for node in self.idx.find(node_type, node_props):
             yield node
+    def pop_nested(self, out_lines):
+        hasattr(self.var, 'pop_nested') and self.var.pop_nested(out_lines)
+        hasattr(self.idx, 'pop_nested') and self.idx.pop_nested(out_lines)
 
 class RowExprOp(object):
     def __init__(self, op, args):
@@ -194,9 +199,11 @@ class ExprContext(object):
     def get_var_assign_expr(self, name):
         return self.vars[name]
     def get_var_expr(self, name):
-        assign = self.vars[name]
-        if isinstance(assign, RowExprAssign):
-            return assign.value
+        expr = self.vars[name]
+        if isinstance(expr, RowExprAssign):
+            return expr.value
+        elif isinstance(expr, RowExprOp):
+            return expr
         else:
             raise Exception('No expression for variable %r' % (name,))
     def itervars(self):

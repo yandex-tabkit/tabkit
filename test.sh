@@ -155,6 +155,33 @@ diff -ub - <(
 0       0       00      0       1
 TEST_END
 
+# вложенность функций в grp контексте - RowExprSubscript
+diff -ub - <(
+    echo "a b c" \
+    | tgrp_awk -H "# x" -o 'y=sum(unjoin_count(" ", x))'
+) <<-TEST_END
+# y:float
+3
+TEST_END
+
+# вложенность функций в grp контексте - RowExprSubscript
+diff -ub - <(
+    echo -e '1 2\n3  4' \
+    | tgrp_awk -H '# x' -o 'z=sum(unjoin(" ", x, unjoin_count("-", x)))'
+) <<-TEST_END
+# z:float
+6
+TEST_END
+
+# вложенность функций в grp контексте - RowExprSideEffectVar
+diff -ub - <(
+    echo -e '1\t2\n3\t4' \
+    | tgrp_awk -H '# x y' -o 'z=sum(10*shell("echo 1")+x*y)'
+) <<-TEST_END
+# z:float
+24
+TEST_END
+
 ## ТЕСТ tsrt #############
 
 diff -ub - <(echo "# a"|tsrt -k a:desc:num --batch-size=8 --print-cmd) <<-TEST_END
