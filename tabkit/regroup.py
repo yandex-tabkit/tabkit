@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import re
 import sys
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from itertools import ifilter, groupby
 from operator import itemgetter
 from optparse import OptionParser, Option, OptionValueError
 
+from tabkit._odict import OrderedDict
 from tabkit.datasrc import SortType, DataFieldOrder
 from tabkit.header import make_header, field_split
 from tabkit.utils import FilesList, OptUtils
