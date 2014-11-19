@@ -77,7 +77,6 @@ common_modules = [
     'tabkit.awk_types',
     'tabkit._fileparser',
     'tabkit.pyparser',
-    'tabkit.regroup',
 ]
 
 def main(dstdir):
@@ -106,6 +105,8 @@ def main(dstdir):
         modules = [
             'tabkit.utils',
             'tabkit.header',
+            'tabkit.datasrc',
+            'tabkit.safe_popen',
         ]
     )
     compile_tools(
@@ -123,7 +124,9 @@ def main(dstdir):
             'tabkit.datasrc',
             'tabkit.header',
             'tabkit.utils',
+            'tabkit._odict',
             'tabkit.regroup',
+            'tabkit.safe_popen',
         ],
     )
     compile_tools(
