@@ -403,6 +403,13 @@ class LRUDict(OrderedDict):
         self[key] = data
         return data
 
+    # python 2.6 does not knows that this is iterable without such adaptors.
+    def __iter__(self):
+        return super(LRUDict, self).__iter__()
+
+    def __reversed__(self):
+        return super(LRUDict, self).__reversed__()
+
 
 class LRUMixin(object):
     @staticmethod

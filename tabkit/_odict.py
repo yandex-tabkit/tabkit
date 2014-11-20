@@ -561,6 +561,9 @@ class OrderedDict(dict):
 
     __iter__ = iterkeys
 
+    def __reversed__(self):
+        return reversed(self._sequence)
+
     def itervalues(self):
         """
         >>> iv = OrderedDict(((1, 3), (3, 2), (2, 1))).itervalues()

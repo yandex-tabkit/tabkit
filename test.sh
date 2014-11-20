@@ -31,7 +31,7 @@ python -m doctest tabkit/header.py
 python -m doctest tabkit/datasrc.py
 python -m doctest tabkit/pyparser.py
 python -m doctest tabkit/safe_popen.py
-python -m unittest -q tabkit.test_tregroup
+PYTHONPATH=. python tabkit/test_tregroup.py
 
 ./_compile_tools.py "$testdir"
 cd "$testdir"

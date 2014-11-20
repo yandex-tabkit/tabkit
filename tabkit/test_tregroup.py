@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
+import unittest
 from itertools import groupby
-from unittest import TestCase, main as unittest_main
 
 from tabkit import regroup
-from tabkit.datasrc import DataFieldOrder
-from tabkit.header import parse_header
 
 
-class FunctionalTest(TestCase):
+class RegroupTestCase(unittest.TestCase):
     def run_regroup_main(self, argv, header, table):
         import tempfile
         from cStringIO import StringIO
@@ -29,7 +27,7 @@ class FunctionalTest(TestCase):
     def check_is_grouped(self, keys, data, group_count=None):
         seen_keys = set()
         for keys, _ in self.group_by_keys(data, keys):
-            self.assertNotIn(keys, seen_keys)
+            assert keys not in seen_keys, (keys, seen_keys)
             seen_keys.add(keys)
         if group_count is not None:
             self.assertEquals(group_count, len(seen_keys))
@@ -150,12 +148,16 @@ class FunctionalTest(TestCase):
         # Второй проход - должен упасть при попытке пропустить 300 килобайт
         # (до пробоя - 50 килобайт, далее - нужно ещё как минимум 50 * 4, т.к.
         # "пробойного" ключа в 3 раза больше).
-        with self.assertRaisesRegexp(Exception, "Memory overlimit."):
+        try:
             self.run_regroup_main(
                 ["-k", "A", "--max-size", "50K"],
                 "# A B",
                 source(300 * 1024),
             )
+        except Exception as e:
+            self.assertEquals(e.args[0], "Memory overlimit.")
+        else:
+            raise AssertionError("Exception was not raised")
 
     def test_lru(self):
         import sys
@@ -295,6 +297,5 @@ class FunctionalTest(TestCase):
         self.check_is_grouped([1], result[:4], group_count=3)
         self.check_is_grouped([1], result[4:], group_count=2)
 
-
-if __name__ == '__main__':
-    unittest_main()
+if __name__ == "__main__":
+    unittest.main()
