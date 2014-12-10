@@ -646,7 +646,7 @@ def awk_filter_map(data_desc, filter_strs, map_strs):
                 ctx.set_var(expr.target, expr)
 
     # parse filter
-    nodes = parse("; ".join(filter_strs)).body
+    nodes = [node for filter_str in filter_strs for node in parse(filter_str).body]
     filter_expr = None
     if len(nodes) == 0:
         pass

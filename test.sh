@@ -45,6 +45,12 @@ diff -ub - <(echo|tmap_awk -H"# a #ORDER: a" -o 'a;c=a') <<-TEST_END
 
 TEST_END
 
+# комментарии в фильтрах
+diff -ub - <(echo -e "# a b\n1\t1\n1\t2" | tmap_awk -f 'a==1 # aaa' -f 'b==1 # bbb') <<-TEST_END
+# a b
+1       1
+TEST_END
+
 
 ## ТЕСТ tmap_awk функций is_in_file и map_from_file #############
 diff --label "LINE ${LINENO}: tmap_awk: is_in_file and map_from_file" -ub - <(echo -e '# x\n1\n2\n3 4 5' \
