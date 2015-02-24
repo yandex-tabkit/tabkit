@@ -585,7 +585,7 @@ def parse_expr(ctx, tree, subparser=None):
     elif isinstance(tree, _ast.Assign):
         raise Exception('Assignments are not allowed here %r' % (dump(tree),))
     else:
-        raise Exception('Unrecognized node %r' % (tree,))
+        raise Exception('Unrecognized node: {0}'.format(dump(tree)))
 
 def parse_assign_expr(ctx, tree, subparser):
     if isinstance(tree, _ast.Assign):
