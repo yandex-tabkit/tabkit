@@ -192,7 +192,7 @@ def main_compound_key(opts, args, key_fields):
         if not order.is_ordered_by(
             DataOrder([DataFieldOrder(key_field) for key_field in key])
         ):
-            raise Exception("File {0!r} must be ordered by {1!r}".format(
+            raise Exception("File {0!r} must be ordered by {1!r} lexicographically".format(
                 filenum + 1, ";".join(key)
             ))
         output_order.append([field for field in order.data_order if field.name not in key and field.name in output_field_names])
@@ -290,7 +290,7 @@ def make_desc_cmd(
         if not new_desc.order.is_ordered_by(
             DataOrder([DataFieldOrder(key_field_name)])
         ):
-            raise Exception("File {0!r} must be ordered by {1!r}".format(
+            raise Exception("File {0!r} must be ordered by {1!r} lexicographically".format(
                 filenum + 1, key_field_name
             ))
         new_descs.append(new_desc)
