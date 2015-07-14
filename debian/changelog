@@ -1,6 +1,10 @@
-tabkit-yandex (1.13030) UNRELEASED; urgency=low
+tabkit-yandex (1.14771) unstable; urgency=low
 
   * Replace tabkit-sort features due to wrapper around of native sort.
+  * tjoin error message about ordering contains details about lexicography.
+  * CONTEXT-74: remove tabkit-sort.
+  * CONTEXT-81: fix FilesList.readlines.
+  * CONTEXT-37: fix tgrp_awk grpexpr.
 
  -- Evgeniy Romanov <romanoved@yandex-team.ru>  Thu, 02 Oct 2014 22:17:26 +0400
 
