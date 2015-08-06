@@ -78,7 +78,7 @@ function test_map {
 }
 
 diff -u - <(test_map) <<-TEST_END
-LC_ALL=C mawk  -F $'\t' 'BEGIN{OFS="\t";}{if((\$1 == 1)){print((\$2 + 1),(\$3?\$1:\$2));}}'
+LC_ALL=C mawk  -F $'\t' 'BEGIN{OFS="\t";}{if(((\$1  "") == 1)){print((\$2 + 1),(\$3?\$1:\$2));}}'
 TEST_END
 
 diff -ub - <(echo -en "\
@@ -186,6 +186,17 @@ diff -ub - <(
 ) <<-TEST_END
 # z:float
 24
+TEST_END
+
+# строковое сравнение полей
+diff -ub - <(
+    echo -e '# a b\n1\t5\n1\t05' \
+    | tgrp_awk --expose-groups -G 'a' \
+        -o 'c = last(b) if last(b) != first(b) else 0.01'
+) <<-TEST_END
+# a c
+1   0.01
+1   05
 TEST_END
 
 ## ТЕСТ tsrt #############

@@ -8,6 +8,11 @@ from tabkit.datasrc import DataDesc, DataField, copy_field_order
 from tabkit.awk_expr import *
 from tabkit.awk_types import infer_type
 
+def to_str(expr):
+    if isinstance(expr, (RowExprField, RowExprVar)): # force str assuming if node is field or variable
+        expr = RowExprOp('', [expr, RowExprConst("")])
+    return expr
+
 OP_MAP = {
     _ast.Add      : lambda args: RowExprOp('+', args),
     _ast.Sub      : lambda args: RowExprOp('-', args),
@@ -563,18 +568,18 @@ def parse_expr(ctx, tree, subparser=None):
             args = tree.comparators[0].elts
             return RowExprOp(
                 '||',
-                [RowExprOp('==', [subparser(ctx, tree.left), subparser(ctx, arg)]) for arg in args],
+                [RowExprOp('==', [to_str(subparser(ctx, tree.left)), subparser(ctx, arg)]) for arg in args],
             )
         elif isinstance(tree.ops[0], _ast.NotIn):
             assert len(tree.comparators) == 1
             args = tree.comparators[0].elts
             return RowExprOp(
                 '&&',
-                [RowExprOp('!=', [subparser(ctx, tree.left), subparser(ctx, arg)]) for arg in args],
+                [RowExprOp('!=', [to_str(subparser(ctx, tree.left)), subparser(ctx, arg)]) for arg in args],
             )
         else:
             return OP_MAP[type(tree.ops[0])](
-                [subparser(ctx, val) for val in [tree.left] + tree.comparators]
+                [to_str(subparser(ctx, val)) for val in [tree.left] + tree.comparators]
             )
     elif isinstance(tree, _ast.IfExp):
         return RowExprIf(
@@ -624,7 +629,7 @@ def awk_filter_map(data_desc, filter_strs, map_strs):
     >>> print desc
     DataDesc([DataField('ctr', 'any'), DataField('cpm', 'any')])
     >>> print awk.cmd_line()
-    LC_ALL=C awk  -F $'\\t' 'BEGIN{OFS="\\t";}{if((($3 == 157) && (($4 > 100) || (($4 == 15) || ($4 == 30) || ($4 == 45))))){ctr = ($5 / $4);print(ctr,(ctr * $6));}}'
+    LC_ALL=C awk  -F $'\\t' 'BEGIN{OFS="\\t";}{if(((($3  "") == 157) && ((($4  "") > 100) || ((($4  "") == 15) || (($4  "") == 30) || (($4  "") == 45))))){ctr = ($5 / $4);print(ctr,(ctr * $6));}}'
     >>> awk, desc = awk_filter_map(parse_header('# a b'), [], ['__all__'])
     >>> print desc
     DataDesc([DataField('a', 'any'), DataField('b', 'any')])
