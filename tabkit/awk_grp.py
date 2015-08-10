@@ -5,7 +5,7 @@ from tabkit.utils import partial
 from tabkit.datasrc import DataDesc
 
 from tabkit.awk import parse_expr, parse_assign_expr
-from tabkit.awk import awk_filter_map_from_context, match_node, to_str
+from tabkit.awk import awk_filter_map_from_context, match_node
 from tabkit.awk import ExprContext, RowExprOp, RowExprVar, RowExprConst, RowExprField
 from tabkit.awk import AwkBlock, AwkScript, AwkHeadBlock
 from tabkit.awk_expr import _GrpExprFunc, RowExprAssign, Namer
@@ -368,7 +368,9 @@ def awk_grp(data_desc, key_str, grp_expr_tuples, output_only_assigned=True, expo
                 assigned_name,
                 RowExprAssign(assigned_name, RowExprVar(out_ctx, key_name)),
             )
-        keys.append((to_str(expr), key_name, key_row_name))
+        if isinstance(expr, RowExprField): # force str assuming if node is field
+            expr = RowExprOp('', [expr, RowExprConst("")])
+        keys.append((expr, key_name, key_row_name))
 
     for grp_type, expr_str in grp_expr_tuples:
         for ast_expr in parse(expr_str).body:
