@@ -3,12 +3,31 @@
 set -e
 set -o pipefail
 
+
+DIGITS=12
+while getopts :d:h FLAG; do
+    case $FLAG in
+        h) echo -e "\t-d N\tprint N digits after decimal point."\\n
+           exit 2;;
+        d) DIGITS=$OPTARG;;
+        \?) #unrecognized option
+            echo -e "Use ${BOLD}$SCRIPT -h${NORM} to see the help documentation."\\n
+            exit 2
+    esac
+done
+shift $((OPTIND-1))
+
 echo $'%%(csv delimiter=; head=1)'
-sed -r '
+sed -r "
 1   s/^#\s*([^#]*).*$/\1/
 1   s/[ \t]+$//
 1   s/[ \t]+/;/g
+2,$ s/^/;/g
+2,$ s/$/;/g
+2,$ s/\t/;\t;/g
+2,$ s/;([0-9]+\.[0-9]{$DIGITS})[0-9]+;/\1/g
+2,$ s/;([^;\t]*);/\1/g
 2,$ s/\t/;/g
-' "$@"
+" "$@"
 echo '%%'
 

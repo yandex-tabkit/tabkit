@@ -369,3 +369,60 @@ f    foo 100
 b    bar -5
 b    bar 1
 EOF
+
+## ТЕСТ twiki ############
+diff -ub - <(
+    echo -en "\
+# A B C
+foo\t11.1111\t1.2.3
+2.22222\tbar\t.2.
+" | ./twiki
+) <<EOF
+%%(csv delimiter=; head=1)
+A;B;C
+foo;11.1111;1.2.3
+2.22222;bar;.2.
+%%
+EOF
+
+diff -ub - <(
+    echo -en "\
+# A B C
+foo\t11.1111\t1.2.3
+2.22222\tbar\t.2.
+" | ./twiki -d 2
+) <<EOF
+%%(csv delimiter=; head=1)
+A;B;C
+foo;11.11;1.2.3
+2.22;bar;.2.
+%%
+EOF
+
+## ТЕСТ tpretty ##########
+diff -ub - <(
+    echo -en "\
+# A B C
+foo\t11.1111\t1.2.3
+2.22222\tbar\t.2.
+" | ./tpretty
+) <<EOF
+A       | B       | C
+--------|---------|-------
+foo     | 11.1111 | 1.2.3
+2.22222 | bar     | .2.
+EOF
+
+diff -ub - <(
+    echo -en "\
+# A B C
+foo\t11.1111\t1.2.3
+2.22222\tbar\t.2.
+" | ./tpretty -d 2
+) <<EOF
+A    | B     | C
+-----|-------|-------
+foo  | 11.11 | 1.2.3
+2.22 | bar   | .2.
+EOF
+
