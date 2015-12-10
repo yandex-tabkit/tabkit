@@ -1,0 +1,83 @@
+#!/usr/bin/python
+import struct
+import sys
+from optparse import OptionParser
+from tabkit.header import parse_header, make_header
+import hashlib
+from zlib import crc32
+
+from tabkit.utils import OptUtils
+
+
+def bs_md5(s):
+    arr = struct.unpack('!IIII', hashlib.md5(s).digest())
+    hi = arr[1] ^ arr[3]
+    low = arr[0] ^ arr[2]
+    return hi << 32 | low
+
+HASH_FUNCTIONS = {
+    'bs_md5':   lambda x: bs_md5(x),
+    'md5':      lambda x: hashlib.md5(x).hexdigest(),
+    'sha1':     lambda x: hashlib.sha1(x).hexdigest(),
+    'sha224':   lambda x: hashlib.sha224(x).hexdigest(),
+    'sha256':   lambda x: hashlib.sha256(x).hexdigest(),
+    'sha384':   lambda x: hashlib.sha384(x).hexdigest(),
+    'sha512':   lambda x: hashlib.sha512(x).hexdigest(),
+    'crc32':    lambda x: crc32(x),
+}
+
+def apply_hash(str_val, hash_func_name):
+    if hash_func_name in HASH_FUNCTIONS:
+        return HASH_FUNCTIONS[hash_func_name](str_val)
+    else:
+        raise Exception('Hash function {0} is not available'.format(hash_func_name))
+
+def parse_hash_flds(hash_flds, data_desc):
+    hash_tpls = []
+
+    for assign_expr in hash_flds.split(';'):
+        hash_fld, hash_expr = assign_expr.split('=')
+        hash_func_name, orig_fld = hash_expr.split('(')
+        orig_fld = orig_fld.rstrip(')')
+        orig_fld_idx = data_desc.field_index(orig_fld)
+        hash_tpls.append((hash_fld, hash_func_name, orig_fld_idx))
+    return hash_tpls
+
+def add_hash(lines, hash_flds, header=None, no_out_header=False):
+    header = header or lines.readline()
+    data_desc = parse_header(header)
+    hash_tpls = parse_hash_flds(hash_flds, data_desc)
+
+    if not no_out_header:
+        new_data_desc = data_desc + [(hash_fld, 'str') for (hash_fld, hash_func, orig_fld_idx) in hash_tpls]
+        sys.stdout.write(make_header(new_data_desc))
+
+    for line in lines:
+        orig_flds = line.rstrip('\n')
+        fields = orig_flds.split('\t')
+        sys.stdout.write(orig_flds)
+        for (hash_fld, hash_func, orig_fld_idx) in hash_tpls:
+            sys.stdout.write('\t' + str(apply_hash(fields[orig_fld_idx], hash_func)))
+        sys.stdout.write('\n')
+
+def main():
+    optparser = OptionParser(usage="%prog [filename]")
+    optparser.add_option("-o", dest="hash_flds",
+                         help="'new_fld1=md5(exist_fld1);new_fld2=sha1(exist_fld2)' "
+                              "bs_md5, md5, sha1, sha224, sha256, sha384, sha512, crc23 are available"
+                         )
+    OptUtils.add_header(optparser)
+    OptUtils.add_no_out_header(optparser)
+
+
+    opts, args = optparser.parse_args()
+    if not args:
+        add_hash(sys.stdin, opts.hash_flds, opts.header, opts.no_out_header)
+    elif len(args) == 1:
+        add_hash(open(args[0]), opts.hash_flds)
+    else:
+        optparser.error('Wrong number of arguments')
+
+
+if __name__ == '__main__':
+    main()
