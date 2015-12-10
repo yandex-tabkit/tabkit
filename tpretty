@@ -8,9 +8,10 @@ import re
 from tabkit.header import parse_header, make_header
 
 class ColWidthCalc(object):
-    def __init__(self, digits=-1):
+    def __init__(self, digits=None, max_width=None):
         self.col_widths = {}
-        self.digits = digits
+        self.digits = digits if digits is not None else -1
+        self.max_width = max_width or sys.maxint
 
     def _trunc_digits(self, line):
         return re.sub(r"(^|\s)([0-9]+\.[0-9]{%d})[0-9]+(?=\s)" % self.digits, r"\g<1>\g<2>", line)
@@ -27,7 +28,7 @@ class ColWidthCalc(object):
             yield line
 
     def get_widths(self):
-        return [min(width, 100) for field_id, width in sorted(self.col_widths.iteritems())]
+        return [min(width, self.max_width) for field_id, width in sorted(self.col_widths.iteritems())]
 
 def fmt_line(line, widths):
     fields = [field.decode('utf8', 'replace') for field in line.rstrip().split('\t', len(widths) - 1)]
@@ -37,10 +38,11 @@ def fmt_line(line, widths):
 
 def main():
     optparser = OptionParser(usage="%prog [filename]")
-    optparser.add_option("-d", "--digits", dest="digits", type="int", default=-1, help="number of digits after decimal point")
+    optparser.add_option("-d", "--digits", dest="digits", type="int", help="number of digits after decimal point")
+    optparser.add_option('--max-width', '--mw', type="int", help="maximal width of a column")
     opts, args = optparser.parse_args()
 
-    col_width_calc = ColWidthCalc(opts.digits)
+    col_width_calc = ColWidthCalc(digits=opts.digits, max_width=opts.max_width)
     tmpfile = tempfile.TemporaryFile()
     if not args:
         tmpfile.writelines(col_width_calc(sys.stdin))
