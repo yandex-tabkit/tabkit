@@ -130,6 +130,14 @@ def main(dstdir):
         ],
     )
     compile_tools(
+        dstdir,
+        scripts = [('thash', 'thash')],
+        modules = [
+            'tabkit.utils',
+            'tabkit.header',
+        ],
+    )
+    compile_tools(
         dstdir = dstdir,
         modules = common_modules,
         scripts = [

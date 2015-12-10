@@ -1,3 +1,9 @@
+tabkit-yandex (1.16083) unstable; urgency=low
+
+  * CONTEXT-368: add thash script
+
+ -- Dina Kedrova <dikedr@yandex-team.ru>  Thu, 10 Dec 2015 18:54:08 +0300
+
 tabkit-yandex (1.15739) unstable; urgency=low
 
   * CONTEXT-63: digits after decimal point
