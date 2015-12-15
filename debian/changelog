@@ -1,3 +1,9 @@
+tabkit-yandex (1.16105) unstable; urgency=low
+
+  * add max_width for tpretty
+
+ -- Dina Kedrova <dikedr@yandex-team.ru>  Tue, 15 Dec 2015 13:44:34 +0300
+
 tabkit-yandex (1.16083) unstable; urgency=low
 
   * CONTEXT-368: add thash script
