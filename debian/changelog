@@ -1,3 +1,9 @@
+tabkit-yandex (1.16111) unstable; urgency=low
+
+  * Fix compiled version of thash
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Wed, 16 Dec 2015 18:35:45 +0300
+
 tabkit-yandex (1.16105) unstable; urgency=low
 
   * add max_width for tpretty

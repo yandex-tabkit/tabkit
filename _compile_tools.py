@@ -133,8 +133,10 @@ def main(dstdir):
         dstdir,
         scripts = [('thash', 'thash')],
         modules = [
-            'tabkit.utils',
+            'tabkit.datasrc',
             'tabkit.header',
+            'tabkit.utils',
+            'tabkit.safe_popen',
         ],
     )
     compile_tools(
