@@ -71,7 +71,7 @@ diff --label "LINE ${LINENO}: tmap_awk: is_in_file and map_from_file" -ub - <(ec
 TEST_END
 
 
-## ТЕСТ tgrp_awk #############
+## ТЕСТ tmap_awk #############
 
 function test_map {
     tmap_awk --print-cmd -H"# a b c" -A mawk -f 'a==1' -o 'x=b+1; y=a if c else b' 2>&1|head -n 1
@@ -110,7 +110,6 @@ diff -ub - <(
 # x y
 1   2
 TEST_END
-
 
 ## ТЕСТ tgrp_awk #############
 
@@ -198,6 +197,14 @@ diff -ub - <(
 1   0.01
 1   0.01
 TEST_END
+
+## ТЕСТ tgrp_awk (типы) #############
+echo {s:str,i:int,l:long,f:float,b:bool,a:any}:{first,last,max,min,sum,product,median,var,avg} |
+    sed 's/[ :]/\n/g' |
+    xargs -n 3 bash -c 'echo "$2($0:$1)"; echo -e "# $0:$1\n1" | tgrp_awk -o "r=$2($0)"' |
+    md5sum - |
+    diff -ub <(echo '1cd04f4afcb24b26cfe57059ee9f9fb4 -') -
+
 
 ## ТЕСТ tsrt #############
 

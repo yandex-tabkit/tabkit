@@ -1,3 +1,9 @@
+tabkit-yandex (1.16114) unstable; urgency=low
+
+  * CONTEXT-391: поправлено выведение типов в группировщиках tgrp_awk.
+
+ -- Evgeniy Romanov <romanoved@yandex-team.ru>  Thu, 17 Dec 2015 03:06:50 +0300
+
 tabkit-yandex (1.16111) unstable; urgency=low
 
   * Fix compiled version of thash

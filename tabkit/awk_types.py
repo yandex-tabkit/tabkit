@@ -13,14 +13,21 @@ def infer_type(obj):
         if isinstance(obj, _GrpExprFunc):
             if obj.func in ["ifmin", "ifmax"]:
                 return infer_type(obj.args[1])
-            if obj.func in ["max", "min", "sum", "median"]:
+            if obj.func in ["first", "last"]:
+                return infer_type(obj.args[0])
+            if obj.func in ["max", "min", "sum", "product", "median", "var"]:
                 type = infer_type(obj.args[0])
                 if type not in ['int', 'float']:
                     type = 'float'
                 return type
-            if obj.func == "cnt":
+            if obj.func in ["cnt"]:
                 return "int"
-            if obj.func == "concat":
+            if obj.func in ["avg"]:
+                return "float"
+            if obj.func in [
+                    "concat", "concat_uniq", "concat_sorted",
+                    "chain_concat_uniq", "concat_sample",
+                ]:
                 return "str"
         else:
             return infer_type(obj.get_var_expr())
