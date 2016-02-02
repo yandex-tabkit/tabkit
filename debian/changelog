@@ -1,3 +1,9 @@
+tabkit-yandex (1.16271) unstable; urgency=low
+
+  * add 'long' to DataField types, add fnv32 hash func, add _long hash functions
+
+ -- Dina Kedrova <dikedr@yandex-team.ru>  Tue, 02 Feb 2016 15:36:00 +0300
+
 tabkit-yandex (1.16114) unstable; urgency=low
 
   * CONTEXT-391: поправлено выведение типов в группировщиках tgrp_awk.

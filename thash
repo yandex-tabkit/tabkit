@@ -15,6 +15,15 @@ def bs_md5(s):
     low = arr[0] ^ arr[2]
     return hi << 32 | low
 
+def fnv32a( str ):
+    hval = 0x811c9dc5
+    fnv_32_prime = 0x01000193
+    uint32_max = 2 ** 32
+    for s in str:
+        hval = hval ^ ord(s)
+        hval = (hval * fnv_32_prime) % uint32_max
+    return hval
+
 HASH_FUNCTIONS = {
     'bs_md5':   lambda x: bs_md5(x),
     'md5':      lambda x: hashlib.md5(x).hexdigest(),
@@ -24,6 +33,7 @@ HASH_FUNCTIONS = {
     'sha384':   lambda x: hashlib.sha384(x).hexdigest(),
     'sha512':   lambda x: hashlib.sha512(x).hexdigest(),
     'crc32':    lambda x: crc32(x),
+    'fnv32':    lambda x: fnv32a(x),
 }
 
 def apply_hash(str_val, hash_func_name):
@@ -33,14 +43,22 @@ def apply_hash(str_val, hash_func_name):
         raise Exception('Hash function {0} is not available'.format(hash_func_name))
 
 def parse_hash_flds(hash_flds, data_desc):
+    available_functions = set(['bs_md5_long', 'crc32_long', 'fnv32_long'] + HASH_FUNCTIONS.keys())
     hash_tpls = []
 
     for assign_expr in hash_flds.split(';'):
         hash_fld, hash_expr = assign_expr.split('=')
         hash_func_name, orig_fld = hash_expr.split('(')
+        if hash_func_name not in available_functions:
+            raise Exception('Function {} is not available, see --help'.format(hash_func_name))
+
+        hash_fld_type = 'long' if 'long' in hash_func_name else 'str'
+        hash_func_orig_name = hash_func_name.rstrip('_long')
+
         orig_fld = orig_fld.rstrip(')')
         orig_fld_idx = data_desc.field_index(orig_fld)
-        hash_tpls.append((hash_fld, hash_func_name, orig_fld_idx))
+
+        hash_tpls.append((hash_fld, hash_fld_type, hash_func_orig_name, orig_fld_idx))
     return hash_tpls
 
 def add_hash(lines, hash_flds, header=None, no_out_header=False):
@@ -49,14 +67,14 @@ def add_hash(lines, hash_flds, header=None, no_out_header=False):
     hash_tpls = parse_hash_flds(hash_flds, data_desc)
 
     if not no_out_header:
-        new_data_desc = data_desc + [(hash_fld, 'str') for (hash_fld, hash_func, orig_fld_idx) in hash_tpls]
+        new_data_desc = data_desc + [(hash_fld, hash_fld_type) for (hash_fld, hash_fld_type, hash_func, orig_fld_idx) in hash_tpls]
         sys.stdout.write(make_header(new_data_desc))
 
     for line in lines:
         orig_flds = line.rstrip('\n')
         fields = orig_flds.split('\t')
         sys.stdout.write(orig_flds)
-        for (hash_fld, hash_func, orig_fld_idx) in hash_tpls:
+        for (hash_fld, hash_fld_type, hash_func, orig_fld_idx) in hash_tpls:
             sys.stdout.write('\t' + str(apply_hash(fields[orig_fld_idx], hash_func)))
         sys.stdout.write('\n')
 
@@ -64,7 +82,8 @@ def main():
     optparser = OptionParser(usage="%prog [filename]")
     optparser.add_option("-o", dest="hash_flds",
                          help="'new_fld1=md5(exist_fld1);new_fld2=sha1(exist_fld2)' "
-                              "bs_md5, md5, sha1, sha224, sha256, sha384, sha512, crc23 are available"
+                              "bs_md5, md5, sha1, sha224, sha256, sha384, sha512, crc32, fnv32 are available, hash fields type is 'str'; "
+                              "bs_md5_long, crc32_long, fnv32_long produce fields of type 'long'"
                          )
     OptUtils.add_header(optparser)
     OptUtils.add_no_out_header(optparser)

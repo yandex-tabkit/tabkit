@@ -438,8 +438,8 @@ diff -ub - <(
 	echo -en "\
 # A B C
 foo\t12345\t1a2b3c
-" | ./thash -o 'a_bsmd5=bs_md5(A);c_crc32=crc32(C);b_sha1=sha1(B)'
+" | ./thash -o 'a_bsmd5=bs_md5(A);c_crc32=crc32_long(C);b_sha1=sha1(B)'
 ) <<EOF
-# A     B       C       a_bsmd5:str     c_crc32:str     b_sha1:str
+# A     B       C       a_bsmd5:str     c_crc32:long     b_sha1:str
 foo     12345   1a2b3c  9225162609816403348     -350793248      8cb2237d0679ca88db6464eac60da96345513964
 EOF

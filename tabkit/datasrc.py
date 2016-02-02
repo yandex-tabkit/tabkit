@@ -7,6 +7,7 @@ TYPES = set([
     'int',
     'str',
     'bool',
+    'long',
     'any',
 ])
 
