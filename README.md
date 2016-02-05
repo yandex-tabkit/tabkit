@@ -1,6 +1,17 @@
 # tabkit cmd-utils and library for 
 ------------------
 
+## Install:
+
+```bash
+python setup.py install --user
+# make sure that installation bin location in $PATH
+# or export PATH="$HOME/.local/bin:$PATH"
+```
+
+------------------
+## Examples:
+
 ```bash
 $ cat file 
 # shows clicks page_id date
