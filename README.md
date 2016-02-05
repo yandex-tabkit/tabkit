@@ -1,4 +1,8 @@
-# tabkit cmd-utils and library for 
+# tabkit
+
+Python wrappers around coreutils (cat, join, sort, cut, awk, pv) to support tab-separated files with headers.
+Headers describe field names, types and data ordering.
+
 ------------------
 
 ## Install:
@@ -10,6 +14,7 @@ python setup.py install --user
 ```
 
 ------------------
+
 ## Examples:
 
 ```bash
