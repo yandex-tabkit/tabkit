@@ -16,11 +16,11 @@ OP_MAP = {
     _ast.Pow      : lambda args: RowExprOp('^', args),
     _ast.Mod      : lambda args: RowExprOp('%', args),
     _ast.FloorDiv : lambda args: RowExprFunc('int', [RowExprOp('/', args)]),
-    _ast.BitAnd   : lambda args: RowExprFunc('and', args),
-    _ast.BitOr    : lambda args: RowExprFunc('or', args),
-    _ast.RShift   : lambda args: RowExprFunc('rshift', args),
-    _ast.LShift   : lambda args: RowExprFunc('lshift', args),
-    _ast.Invert   : lambda args: RowExprFunc('compl', args),
+    _ast.BitAnd   : lambda args: RowExprFunc('and_safe', args),
+    _ast.BitOr    : lambda args: RowExprFunc('or_safe', args),
+    _ast.RShift   : lambda args: RowExprFunc('rshift_safe', args),
+    _ast.LShift   : lambda args: RowExprFunc('lshift_safe', args),
+    _ast.Invert   : lambda args: RowExprFunc('compl_safe', args),
 
     _ast.And      : lambda args: RowExprOp('&&', args),
     _ast.Or       : lambda args: RowExprOp('||', args),
@@ -143,6 +143,53 @@ function uniq(delim, expr){
     for (__uniq_i=1; __uniq_i<=__uniq_nitems; __uniq_i++)
             __uniq_result = (__uniq_result=="")?(__uniq_heap[__uniq_i]):(__uniq_result delim __uniq_heap[__uniq_i]);
     return __uniq_result;
+}
+''',
+
+    'check_bitwise': '''
+function check_bitwise(expr1, expr2, func_name){
+    if ((expr1 > 9007199254740991) || (expr2 > 9007199254740991)){
+        print "Error: arg for bitwise operation", func_name, "is gt 2**53 - 1" > "/dev/stderr";
+        exit 1;
+    }
+}
+''',
+
+    'and_safe': '''
+function and_safe(expr1,expr2){
+    check_bitwise(expr1,expr2,"and");
+    return and(expr1,expr2);
+}
+''',
+
+    'or_safe': '''
+function or_safe(expr1,expr2){
+    check_bitwise(expr1,expr2,"or");
+    return or(expr1,expr2);
+}
+''',
+
+    'rshift_safe': '''
+function rshift_safe(expr1,expr2){
+    check_bitwise(expr1,expr2,"rshift");
+    return rshift(expr1,expr2);
+}
+''',
+
+    'lshift_safe': '''
+function lshift_safe(expr1,expr2){
+    check_bitwise(expr1,expr2,"lshift");
+    return lshift(expr1,expr2);
+}
+''',
+
+    'compl_safe': '''
+function compl_safe(expr){
+    if (expr > 9007199254740991){
+        print "Error: arg for bitwise operation", "compl", "is gt 2**53 - 1" > "/dev/stderr";
+        exit 1;
+    }
+    return compl(expr);
 }
 '''
 }
@@ -551,10 +598,18 @@ def parse_expr(ctx, tree, subparser=None):
     elif isinstance(tree, _ast.Str):
         return RowExprConst(tree.s)
     elif isinstance(tree, _ast.BinOp):
+        EXT_FUNC_REQ.add('check_bitwise')
+        if isinstance(tree.op, _ast.BitAnd): EXT_FUNC_REQ.add('and_safe')
+        if isinstance(tree.op, _ast.BitOr): EXT_FUNC_REQ.add('or_safe')
+        if isinstance(tree.op, _ast.RShift): EXT_FUNC_REQ.add('rshift_safe')
+        if isinstance(tree.op, _ast.LShift): EXT_FUNC_REQ.add('lshift_safe')
         return OP_MAP[type(tree.op)]([subparser(ctx, tree.left), subparser(ctx, tree.right)])
     elif isinstance(tree, _ast.BoolOp):
         return OP_MAP[type(tree.op)]([subparser(ctx, val) for val in tree.values])
     elif isinstance(tree, _ast.UnaryOp):
+        if isinstance(tree.op, _ast.Invert):
+            EXT_FUNC_REQ.add('check_bitwise')
+            EXT_FUNC_REQ.add('compl_safe')
         return OP_MAP[type(tree.op)]([subparser(ctx, tree.operand)])
     elif isinstance(tree, _ast.Compare):
         assert len(tree.ops) == 1
