@@ -2,7 +2,11 @@ Source: tabkit-yandex
 Section: unknown
 Priority: optional
 Maintainer: Alexey Akimov <akimov@yandex-team.ru>
-Build-Depends: debhelper (>= 7.0)
+Build-Depends:
+ debhelper (>= 7.0),
+ python,
+ python-dev,
+ python-setuptools,
 X-Python-Version: >= 2.6
 Vcs-Svn: svn+ssh://svn.yandex.ru/yacontext/packages/mrkit
 Standards-Version: 3.9.3
