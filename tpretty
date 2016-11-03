@@ -8,13 +8,21 @@ import re
 from tabkit.header import parse_header, make_header
 
 class ColWidthCalc(object):
-    def __init__(self, digits=None, max_width=None):
+    def __init__(self, digits=None, max_width=None, colored=False):
         self.col_widths = {}
         self.digits = digits if digits is not None else -1
         self.max_width = max_width or sys.maxint
+        self.colored = colored
 
     def _trunc_digits(self, line):
         return re.sub(r"(^|\s)([0-9]+\.[0-9]{%d})[0-9]+(?=\s)" % self.digits, r"\g<1>\g<2>", line)
+
+    def _get_len(self, field):
+        if self.colored:
+            field_len = len(re.sub(r"\033\[[\d;]+m", r"", field))
+        else:
+            field_len = len(field)
+        return field_len
 
     def __call__(self, lines):
         col_widths = self.col_widths
@@ -24,25 +32,39 @@ class ColWidthCalc(object):
             line = self._trunc_digits(line)
             fields = line.rstrip().split('\t')
             for field_id, field in enumerate(fields):
-                col_widths[field_id] = max(col_widths.get(field_id, 0), len(field.decode('utf8', 'replace')))
+                col_widths[field_id] = max(col_widths.get(field_id, 0), self._get_len(field.decode('utf8', 'replace')))
             yield line
 
     def get_widths(self):
         return [min(width, self.max_width) for field_id, width in sorted(self.col_widths.iteritems())]
 
-def fmt_line(line, widths):
-    fields = [field.decode('utf8', 'replace') for field in line.rstrip().split('\t', len(widths) - 1)]
+
+def fmt_line(line, text_widths, colored):
+    fields = [field.decode('utf8', 'replace') for field in line.rstrip().split('\t', len(text_widths) - 1)]
+
+    if colored:
+        esc_seq_widths = map(
+            lambda esc_parts: sum(len(pt) for pt in esc_parts),
+            (re.findall(r"\033\[[\d;]+m", field) for field in fields)
+        )
+        widths = map(lambda (fld_width, esc_seq_width): fld_width + esc_seq_width, zip(text_widths, esc_seq_widths))
+    else:
+        widths = text_widths
+
     fields_widths = zip(fields, widths)
     fmt_line = u' | '.join("%%-%ds" % (wid,) for field, wid in fields_widths)
     return (fmt_line % tuple(fields)).encode('utf8')
+
 
 def main():
     optparser = OptionParser(usage="%prog [filename]")
     optparser.add_option("-d", "--digits", dest="digits", type="int", help="number of digits after decimal point")
     optparser.add_option('--max-width', '--mw', type="int", help="maximal width of a column")
+    optparser.add_option('-c', '--colored', dest="colored", action='store_true',
+                         help="process color anscii escape sequences")
     opts, args = optparser.parse_args()
 
-    col_width_calc = ColWidthCalc(digits=opts.digits, max_width=opts.max_width)
+    col_width_calc = ColWidthCalc(digits=opts.digits, max_width=opts.max_width, colored=opts.colored)
     tmpfile = tempfile.TemporaryFile()
     if not args:
         tmpfile.writelines(col_width_calc(sys.stdin))
@@ -57,10 +79,10 @@ def main():
         if i == 0 and line.startswith('#'):
             fields = parse_header(line).fields
             line = '\t'.join(field.name for field in fields)
-            print fmt_line(line, col_width_calc.get_widths())
+            print fmt_line(line, col_width_calc.get_widths(), opts.colored)
             print "|".join("-"*(w + 2) for w in col_width_calc.get_widths()[:len(fields)])[1:]
         else:
-            print fmt_line(line, col_width_calc.get_widths()[:len(fields)])
+            print fmt_line(line, col_width_calc.get_widths()[:len(fields)], opts.colored)
 
 if __name__ == '__main__':
     main()
