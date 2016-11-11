@@ -433,6 +433,20 @@ foo  | 11.11 | 1.2.3
 2.22 | bar   | .2.
 EOF
 
+diff -ub <(
+    echo -en "\
+# A B C
+foo\t11.1111\t\e[1;31m1.2.3\e[0m
+\e[1;31m2.22222\e[0m\tbar\t.2.
+" | ./tpretty -d 2 -c
+) <(echo -en "\
+A    | B     | C
+-----|-------|-------
+foo  | 11.11 | \e[1;31m1.2.3\e[0m
+\e[1;31m2.22\e[0m | bar   | .2.
+"
+)
+
 ## ТЕСТ thash ##########
 diff -ub - <(
 	echo -en "\

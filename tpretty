@@ -19,8 +19,7 @@ class ColWidthCalc(object):
         number_matches = re.findall(r"\d+\.\d+", field)
         if number_matches:
             field_trunc = field
-            for number_match in number_matches:
-                number = number_match
+            for number in number_matches:
                 number_trunc = re.sub(r"(\d+\.\d{%d})\d+" % self.digits, r"\g<1>", number)
                 field_trunc = field_trunc.replace(number, number_trunc, 1)
             return field_trunc
