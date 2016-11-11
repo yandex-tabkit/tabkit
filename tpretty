@@ -7,6 +7,7 @@ import re
 
 from tabkit.header import parse_header, make_header
 
+
 class ColWidthCalc(object):
     def __init__(self, digits=None, max_width=None, colored=False):
         self.col_widths = {}
@@ -14,8 +15,16 @@ class ColWidthCalc(object):
         self.max_width = max_width or sys.maxint
         self.colored = colored
 
-    def _trunc_digits(self, line):
-        return re.sub(r"(^|\s)([0-9]+\.[0-9]{%d})[0-9]+(?=\s)" % self.digits, r"\g<1>\g<2>", line)
+    def _trunc_digits(self, field):
+        number_matches = re.findall(r"\d+\.\d+", field)
+        if number_matches:
+            field_trunc = field
+            for number_match in number_matches:
+                number = number_match
+                number_trunc = re.sub(r"(\d+\.\d{%d})\d+" % self.digits, r"\g<1>", number)
+                field_trunc = field_trunc.replace(number, number_trunc, 1)
+            return field_trunc
+        return field
 
     def _get_len(self, field):
         if self.colored:
@@ -29,11 +38,18 @@ class ColWidthCalc(object):
         for i, line in enumerate(lines):
             if i == 0 and line.startswith('#'):
                 line = make_header(parse_header(line))
-            line = self._trunc_digits(line)
-            fields = line.rstrip().split('\t')
+                fields = [field.name for field in parse_header(line).fields]
+            else:
+                fields = line.rstrip().split('\t')
+            fields_trunc_digits = []
             for field_id, field in enumerate(fields):
-                col_widths[field_id] = max(col_widths.get(field_id, 0), self._get_len(field.decode('utf8', 'replace')))
-            yield line
+                fld_trunc = self._trunc_digits(field.decode('utf8', 'replace'))
+                col_widths[field_id] = max(col_widths.get(field_id, 0), self._get_len(fld_trunc))
+                fields_trunc_digits.append(fld_trunc)
+            if i == 0 and line.startswith('#'):
+                yield line
+            else:
+                yield '\t'.join(map(lambda f: f.encode('utf8'), fields_trunc_digits)) + '\n'
 
     def get_widths(self):
         return [min(width, self.max_width) for field_id, width in sorted(self.col_widths.iteritems())]
