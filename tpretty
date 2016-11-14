@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# encoding: utf-8
 
 import sys
 import tempfile
@@ -16,6 +17,7 @@ class ColWidthCalc(object):
         self.colored = colored
 
     def _trunc_digits(self, field):
+        field = re.sub(r"Â±", r"±", field)  # для выдачи exp-stats
         number_matches = re.findall(r"\d+\.\d+", field)
         if number_matches:
             field_trunc = field
@@ -42,13 +44,16 @@ class ColWidthCalc(object):
                 fields = line.rstrip().split('\t')
             fields_trunc_digits = []
             for field_id, field in enumerate(fields):
-                fld_trunc = self._trunc_digits(field.decode('utf8', 'replace'))
-                col_widths[field_id] = max(col_widths.get(field_id, 0), self._get_len(fld_trunc))
+                fld_trunc = self._trunc_digits(field)
+                col_widths[field_id] = max(
+                    col_widths.get(field_id, 0),
+                    self._get_len(fld_trunc.decode('utf-8', 'replace'))
+                )
                 fields_trunc_digits.append(fld_trunc)
             if i == 0 and line.startswith('#'):
                 yield line
             else:
-                yield '\t'.join(map(lambda f: f.encode('utf8'), fields_trunc_digits)) + '\n'
+                yield '\t'.join(fields_trunc_digits) + '\n'
 
     def get_widths(self):
         return [min(width, self.max_width) for field_id, width in sorted(self.col_widths.iteritems())]
