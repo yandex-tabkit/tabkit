@@ -15,6 +15,9 @@ def bs_md5(s):
     low = arr[0] ^ arr[2]
     return hi << 32 | low
 
+def half_md5(s):
+    return int(hashlib.md5(s).hexdigest()[16:], 16)
+
 def fnv32a( str ):
     hval = 0x811c9dc5
     fnv_32_prime = 0x01000193
@@ -26,6 +29,7 @@ def fnv32a( str ):
 
 HASH_FUNCTIONS = {
     'bs_md5':   lambda x: bs_md5(x),
+    'half_md5': lambda x: half_md5(x),
     'md5':      lambda x: hashlib.md5(x).hexdigest(),
     'sha1':     lambda x: hashlib.sha1(x).hexdigest(),
     'sha224':   lambda x: hashlib.sha224(x).hexdigest(),
@@ -82,7 +86,7 @@ def main():
     optparser = OptionParser(usage="%prog [filename]")
     optparser.add_option("-o", dest="hash_flds",
                          help="'new_fld1=md5(exist_fld1);new_fld2=sha1(exist_fld2)' "
-                              "bs_md5, md5, sha1, sha224, sha256, sha384, sha512, crc32, fnv32 are available, hash fields type is 'str'; "
+                              "bs_md5, half_md5, md5, sha1, sha224, sha256, sha384, sha512, crc32, fnv32 are available, hash fields type is 'str'; "
                               "bs_md5_long, crc32_long, fnv32_long produce fields of type 'long'"
                          )
     OptUtils.add_header(optparser)
