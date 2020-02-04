@@ -37,7 +37,7 @@ setup(
         Extension(
             'tabkit._tparallel',
             sources=['tabkit/_tparallel.cpp'],
-            extra_compile_args = ['-finput-charset=UTF-8', '--fast-math']
+            extra_compile_args = ['-finput-charset=UTF-8', '-ffast-math']
         )
     ],
     cmdclass = {
