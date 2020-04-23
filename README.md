@@ -8,7 +8,7 @@ Headers describe field names, types and data ordering.
 ## Install:
 
 ```bash
-python setup.py install --prefix=~/.local
+python2 setup.py install --prefix=~/.local
 # make sure that installation bin location in $PATH
 # or export PATH="$HOME/.local/bin:$PATH"
 ```
